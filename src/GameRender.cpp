@@ -24,9 +24,12 @@ constexpr Color kHurtColor = {255, 90, 90, 255};
 constexpr Color kVisorColor = {240, 240, 250, 255};
 constexpr Color kChargeMidColor = {250, 220, 90, 255};
 constexpr Color kChargeFullColor = {255, 120, 90, 255};
+constexpr Color kFallingColor = {205, 170, 110, 255};
 constexpr Color kCrawlerColor = {90, 200, 110, 255};
-constexpr Color kFlyerColor = {230, 110, 200, 255};
 constexpr Color kShooterColor = {240, 150, 60, 255};
+constexpr Color kFlyerPassiveColor = {150, 170, 200, 255};
+constexpr Color kFlyerChaserColor = {230, 110, 200, 255};
+constexpr Color kFlyerShooterColor = {190, 90, 240, 255};
 constexpr Color kEnemyShotColor = {255, 70, 70, 255};
 constexpr Color kToolColor = {120, 245, 210, 255};
 constexpr Color kDoorClosedColor = {170, 60, 60, 255};
@@ -36,6 +39,7 @@ constexpr Color kBarBackColor = {30, 30, 40, 255};
 constexpr Color kBarColor = {90, 230, 120, 255};
 
 constexpr int kDarkCell = 4;
+constexpr int kCrumbleFallFrames = 24;
 
 struct Camera2i {
     int x;
@@ -102,12 +106,24 @@ void drawRoom(const Game& game, const Camera2i& cam) {
     }
 
     for (const CrumbleBlock& block : game.hazards().crumbles()) {
-        if (block.phase == CrumbleBlock::Phase::Fallen) {
+        if (block.phase == CrumbleBlock::Phase::Fallen && block.fallFrames > kCrumbleFallFrames) {
             continue;
         }
         const int shake = block.phase == CrumbleBlock::Phase::Shaking ? (block.timer / 2 % 2) * 2 - 1 : 0;
-        DrawRectangle(block.tileX * kTileSize - cam.x + shake, block.tileY * kTileSize - cam.y, kTileSize, kTileSize,
-                      kCrumbleColor);
+        const int drop = block.phase == CrumbleBlock::Phase::Fallen ? block.fallFrames * block.fallFrames / 8 : 0;
+        DrawRectangle(block.tileX * kTileSize - cam.x + shake, block.tileY * kTileSize - cam.y + drop, kTileSize,
+                      kTileSize, kCrumbleColor);
+    }
+
+    for (const FallingObject& object : game.hazards().fallingObjects()) {
+        if (object.phase == FallingObject::Phase::Gone) {
+            continue;
+        }
+        Box box = object.box;
+        if (object.phase == FallingObject::Phase::Warning) {
+            box.x += static_cast<float>((object.timer / 2 % 2) * 2 - 1);
+        }
+        drawBox(box, cam, kFallingColor);
     }
 }
 
@@ -123,12 +139,20 @@ void drawTools(const Game& game, const Camera2i& cam) {
     }
 }
 
+Color enemyColor(EnemyKind kind) {
+    switch (kind) {
+        case EnemyKind::Crawler: return kCrawlerColor;
+        case EnemyKind::Shooter: return kShooterColor;
+        case EnemyKind::FlyerPassive: return kFlyerPassiveColor;
+        case EnemyKind::FlyerChaser: return kFlyerChaserColor;
+        case EnemyKind::FlyerShooter: return kFlyerShooterColor;
+    }
+    return WHITE;
+}
+
 void drawEnemies(const Game& game, const Camera2i& cam) {
     for (const Enemy& enemy : game.enemies()) {
-        const Color color = enemy.kind == EnemyKind::Crawler  ? kCrawlerColor
-                            : enemy.kind == EnemyKind::Flyer ? kFlyerColor
-                                                             : kShooterColor;
-        drawBox(enemy.box, cam, color);
+        drawBox(enemy.box, cam, enemyColor(enemy.kind));
         const int eyeX = static_cast<int>(enemy.box.x) - cam.x + (enemy.dir > 0 ? static_cast<int>(enemy.box.w) - 4 : 1);
         DrawRectangle(eyeX, static_cast<int>(enemy.box.y) - cam.y + 3, 3, 3, BLACK);
     }

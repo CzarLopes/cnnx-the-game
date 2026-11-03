@@ -4,7 +4,13 @@
 
 #include "Room.h"
 
-enum class EnemyKind { Crawler, Flyer, Shooter };
+// Todo bloco tem os tres voadores: o passivo so atrapalha o caminho, o
+// perseguidor vem para cima e o atirador mira no jogador.
+enum class EnemyKind { Crawler, Shooter, FlyerPassive, FlyerChaser, FlyerShooter };
+
+constexpr bool isFlyer(EnemyKind kind) {
+    return kind == EnemyKind::FlyerPassive || kind == EnemyKind::FlyerChaser || kind == EnemyKind::FlyerShooter;
+}
 
 struct ForceStats {
     int hp;
@@ -32,11 +38,13 @@ struct Enemy {
     int timer;
     float homeX;  // centro
     float homeY;
+    int age = 0;
 };
 
 struct EnemyShot {
     Box box;
     float vx;
+    float vy;
     int damage;
     int life;
 };

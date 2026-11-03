@@ -96,6 +96,7 @@ LevelData parseLevelJson(const json& project, const std::string& levelId) {
     std::vector<EnemySpawn> enemies;
     std::vector<ToolPickup> tools;
     std::vector<Box> darkZones;
+    std::vector<Box> fallingObjects;
     std::optional<Box> door;
     bool hasStart = false;
 
@@ -116,8 +117,14 @@ LevelData parseLevelJson(const json& project, const std::string& levelId) {
             enemies.push_back({EnemyKind::Crawler, centerX, box.y + box.h});
         } else if (name == "Shooter") {
             enemies.push_back({EnemyKind::Shooter, centerX, box.y + box.h});
-        } else if (name == "Flyer") {
-            enemies.push_back({EnemyKind::Flyer, centerX, box.y + box.h / 2.0f});
+        } else if (name == "FlyerPassive") {
+            enemies.push_back({EnemyKind::FlyerPassive, centerX, box.y + box.h / 2.0f});
+        } else if (name == "FlyerChaser") {
+            enemies.push_back({EnemyKind::FlyerChaser, centerX, box.y + box.h / 2.0f});
+        } else if (name == "FlyerShooter") {
+            enemies.push_back({EnemyKind::FlyerShooter, centerX, box.y + box.h / 2.0f});
+        } else if (name == "FallingObject") {
+            fallingObjects.push_back(box);
         } else if (name == "Tool") {
             tools.push_back({stringField(entity, "kind", levelId), box, false});
         } else if (name == "Door") {
@@ -136,7 +143,7 @@ LevelData parseLevelJson(const json& project, const std::string& levelId) {
         fail(levelId, "falta Door");
     }
     return {Room(std::move(rows)), std::move(enemies), std::move(tools), *door, std::move(darkZones),
-            strengthOf(level, levelId)};
+            strengthOf(level, levelId), std::move(fallingObjects)};
 }
 
 }  // namespace

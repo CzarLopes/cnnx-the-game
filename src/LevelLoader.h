@@ -19,6 +19,7 @@ struct LevelData {
     Box door;
     std::vector<Box> darkZones;
     int strength;
+    std::vector<Box> fallingObjects = {};
 };
 
 // Lanca std::runtime_error com o motivo se o arquivo ou o nivel estiverem invalidos.

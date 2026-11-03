@@ -12,6 +12,10 @@ constexpr float kFlyerSpeed = 0.6f;
 constexpr float kFlyerSight = 96.0f;
 constexpr float kFlyerBobHeight = 8.0f;
 constexpr float kFlyerBobRate = 0.06f;
+constexpr float kPassiveSpeed = 0.5f;
+constexpr float kPassiveRange = 40.0f;
+constexpr int kFlyerShooterCooldown = 150;
+constexpr float kFlyerShooterRange = 128.0f;
 
 constexpr int kShooterCooldown = 120;
 constexpr int kShooterFirstShot = 30;
@@ -54,13 +58,63 @@ void updateCrawler(Enemy& enemy, const Room& room, float speed) {
     }
 }
 
-void updateFlyer(Enemy& enemy, const Room& room, const Box& target, float speed) {
-    ++enemy.timer;
+float bobOffset(const Enemy& enemy) {
+    return std::sin(static_cast<float>(enemy.age) * kFlyerBobRate) * kFlyerBobHeight;
+}
+
+void hoverAtHomeHeight(Enemy& enemy, const Room& room) {
+    Box next = enemy.box;
+    next.y = enemy.homeY + bobOffset(enemy) - next.h / 2.0f;
+    if (!room.overlapsSolid(next)) {
+        enemy.box = next;
+    }
+}
+
+void updateFlyerPassive(Enemy& enemy, const Room& room, float speed) {
+    ++enemy.age;
+    Box next = enemy.box;
+    next.x += static_cast<float>(enemy.dir) * speed;
+    if (room.overlapsSolid(next) || std::fabs(centerX(next) - enemy.homeX) > kPassiveRange) {
+        enemy.dir = -enemy.dir;
+    } else {
+        enemy.box = next;
+    }
+    hoverAtHomeHeight(enemy, room);
+}
+
+void updateFlyerShooter(Enemy& enemy, std::vector<EnemyShot>& shots, const Room& room, const Box& target,
+                        const ForceStats& stats) {
+    ++enemy.age;
+    hoverAtHomeHeight(enemy, room);
+
+    const float dx = centerX(target) - centerX(enemy.box);
+    const float dy = centerY(target) - centerY(enemy.box);
+    enemy.dir = dx >= 0.0f ? 1 : -1;
+    if (enemy.timer > 0) {
+        --enemy.timer;
+        return;
+    }
+    const float distance = std::hypot(dx, dy);
+    if (distance > kFlyerShooterRange || distance == 0.0f) {
+        return;
+    }
+    enemy.timer = static_cast<int>(static_cast<float>(kFlyerShooterCooldown) / stats.speedScale);
+    const float speed = kProjectileSpeed * stats.speedScale;
+    shots.push_back({{centerX(enemy.box) - kProjectileSize / 2.0f, centerY(enemy.box) - kProjectileSize / 2.0f,
+                      kProjectileSize, kProjectileSize},
+                     dx / distance * speed,
+                     dy / distance * speed,
+                     stats.projectileDamage,
+                     kProjectileLife});
+}
+
+void updateFlyerChaser(Enemy& enemy, const Room& room, const Box& target, float speed) {
+    ++enemy.age;
     const float dx = centerX(target) - centerX(enemy.box);
     const float dy = centerY(target) - centerY(enemy.box);
     const bool chasing = std::fabs(dx) < kFlyerSight && std::fabs(dy) < kFlyerSight;
 
-    const float bob = std::sin(static_cast<float>(enemy.timer) * kFlyerBobRate) * kFlyerBobHeight;
+    const float bob = bobOffset(enemy);
     const float goalX = chasing ? centerX(target) : enemy.homeX;
     const float goalY = chasing ? centerY(target) : enemy.homeY + bob;
 
@@ -95,6 +149,7 @@ void updateShooter(Enemy& enemy, std::vector<EnemyShot>& shots, const Box& targe
     const float muzzleX = enemy.dir > 0 ? enemy.box.x + enemy.box.w : enemy.box.x - kProjectileSize;
     shots.push_back({{muzzleX, enemy.box.y + 4.0f, kProjectileSize, kProjectileSize},
                      static_cast<float>(enemy.dir) * kProjectileSpeed * stats.speedScale,
+                     0.0f,
                      stats.projectileDamage,
                      kProjectileLife});
 }
@@ -121,10 +176,12 @@ Enemy makeEnemy(const EnemySpawn& spawn, int strength) {
         w = 16.0f + growth;
         h = 20.0f + growth;
         timer = kShooterFirstShot;
+    } else if (spawn.kind == EnemyKind::FlyerShooter) {
+        timer = kShooterFirstShot;
     }
 
     const float x = spawn.centerX - w / 2.0f;
-    const float y = spawn.kind == EnemyKind::Flyer ? spawn.baseY - h / 2.0f : spawn.baseY - h;
+    const float y = isFlyer(spawn.kind) ? spawn.baseY - h / 2.0f : spawn.baseY - h;
     return {spawn.kind, {x, y, w, h}, forceStats(strength).hp, -1, timer, spawn.centerX, spawn.baseY};
 }
 
@@ -136,11 +193,17 @@ void updateEnemies(std::vector<Enemy>& enemies, std::vector<EnemyShot>& shots, c
             case EnemyKind::Crawler:
                 updateCrawler(enemy, room, kCrawlerSpeed * stats.speedScale);
                 break;
-            case EnemyKind::Flyer:
-                updateFlyer(enemy, room, target, kFlyerSpeed * stats.speedScale);
-                break;
             case EnemyKind::Shooter:
                 updateShooter(enemy, shots, target, stats);
+                break;
+            case EnemyKind::FlyerPassive:
+                updateFlyerPassive(enemy, room, kPassiveSpeed * stats.speedScale);
+                break;
+            case EnemyKind::FlyerChaser:
+                updateFlyerChaser(enemy, room, target, kFlyerSpeed * stats.speedScale);
+                break;
+            case EnemyKind::FlyerShooter:
+                updateFlyerShooter(enemy, shots, room, target, stats);
                 break;
         }
     }
@@ -149,6 +212,7 @@ void updateEnemies(std::vector<Enemy>& enemies, std::vector<EnemyShot>& shots, c
 void updateEnemyShots(std::vector<EnemyShot>& shots, const Room& room) {
     for (EnemyShot& shot : shots) {
         shot.box.x += shot.vx;
+        shot.box.y += shot.vy;
         --shot.life;
     }
     shots.erase(std::remove_if(shots.begin(), shots.end(),

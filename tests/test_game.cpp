@@ -133,18 +133,92 @@ void testEnemyBehavior() {
     }
     CHECK(turned && !leftPlatform, "rastejante vira na beirada sem cair");
 
-    std::vector<Enemy> flyer = {makeEnemy({EnemyKind::Flyer, 40, 24}, 1)};
+    std::vector<Enemy> flyer = {makeEnemy({EnemyKind::FlyerChaser, 40, 24}, 1)};
     const float startX = flyer[0].box.x;
     for (int i = 0; i < 20; ++i) {
         updateEnemies(flyer, noShots, room, {80, 16, 14, 28}, 1);
     }
-    CHECK(flyer[0].box.x > startX, "voador persegue o jogador por perto");
+    CHECK(flyer[0].box.x > startX, "voador perseguidor vem para cima do jogador");
 
-    std::vector<Enemy> walled = {makeEnemy({EnemyKind::Flyer, 56, 24}, 1)};
+    std::vector<Enemy> walled = {makeEnemy({EnemyKind::FlyerChaser, 56, 24}, 1)};
     for (int i = 0; i < 200; ++i) {
         updateEnemies(walled, noShots, room, {100, 34, 14, 14}, 1);
     }
     CHECK(!room.overlapsSolid(walled[0].box), "voador nao atravessa blocos");
+
+    const Room open({
+        "##############################",
+        "#P...........................#",
+        "#............................#",
+        "#............................#",
+        "#............................#",
+        "#............................#",
+        "##############################",
+    });
+    std::vector<Enemy> passive = {makeEnemy({EnemyKind::FlyerPassive, 200, 48}, 1)};
+    const Box nearby = {230, 40, 14, 28};
+    float minX = passive[0].box.x;
+    float maxX = passive[0].box.x;
+    for (int i = 0; i < 600; ++i) {
+        updateEnemies(passive, noShots, open, nearby, 1);
+        minX = std::min(minX, passive[0].box.x);
+        maxX = std::max(maxX, passive[0].box.x);
+    }
+    CHECK(maxX - minX > 60 && maxX - minX < 90, "voador passivo patrulha e ignora o jogador (%.1f px)", maxX - minX);
+    CHECK(noShots.empty(), "voador passivo nao atira");
+
+    std::vector<Enemy> sniper = {makeEnemy({EnemyKind::FlyerShooter, 200, 32}, 1)};
+    std::vector<EnemyShot> aimed;
+    const float hoverX = sniper[0].box.x;
+    for (int i = 0; i < 40 && aimed.empty(); ++i) {
+        updateEnemies(sniper, aimed, open, {120, 66, 14, 14}, 1);
+    }
+    CHECK(aimed.size() == 1 && aimed[0].vx < 0 && aimed[0].vy > 0, "voador atirador mira na diagonal");
+    CHECK(sniper[0].box.x == hoverX, "voador atirador mantem posicao");
+    for (int i = 0; i < 80; ++i) {
+        updateEnemyShots(aimed, open);
+    }
+    CHECK(aimed.empty(), "tiro diagonal some ao bater no chao");
+}
+
+void testFallingObject() {
+    Room room({
+        "##############",
+        "#P...........#",
+        "#............#",
+        "#............#",
+        "#............#",
+        "#............#",
+        "##############",
+    });
+    Hazards hazards(room, {}, {{96, 16, 32, 16}});
+    const Box far = {16, 64, 14, 28};
+    for (int i = 0; i < 30; ++i) {
+        hazards.update(room, far, true);
+    }
+    CHECK(hazards.fallingObjects()[0].phase == FallingObject::Phase::Hanging, "objeto fica suspenso com o jogador longe");
+
+    const Box below = {100, 64, 14, 28};
+    hazards.update(room, below, true);
+    CHECK(hazards.fallingObjects()[0].phase == FallingObject::Phase::Warning, "objeto treme quando o jogador se aproxima");
+    CHECK(hazards.damageAt(room, {96, 16, 32, 16}) == 0, "objeto tremendo ainda nao causa dano");
+
+    bool hit = false;
+    for (int i = 0; i < 80 && hazards.fallingObjects()[0].phase != FallingObject::Phase::Gone; ++i) {
+        hazards.update(room, below, true);
+        hit = hit || hazards.damageAt(room, below) == 3;
+    }
+    CHECK(hit, "objeto caindo causa 3 de dano");
+    CHECK(hazards.fallingObjects()[0].phase == FallingObject::Phase::Gone, "objeto some ao bater no chao");
+
+    for (int i = 0; i < 245; ++i) {
+        hazards.update(room, far, true);
+    }
+    CHECK(hazards.fallingObjects()[0].phase == FallingObject::Phase::Hanging, "objeto volta a ficar suspenso");
+
+    hazards.update(room, below, true);
+    hazards.reset(room);
+    CHECK(hazards.fallingObjects()[0].phase == FallingObject::Phase::Hanging, "renascer rearma o objeto");
 }
 
 void testHazards() {
@@ -314,8 +388,9 @@ void testBlockContent() {
                              [kind](const EnemySpawn& spawn) { return spawn.kind == kind; });
     };
     CHECK(level.strength == 1 && level.room.widthTiles() == 110, "w1_f1_b1 carrega com forca 1 e 110 tiles");
-    CHECK(count(EnemyKind::Crawler) == 4 && count(EnemyKind::Flyer) == 3 && count(EnemyKind::Shooter) == 2, "9 inimigos: 4, 3 e 2");
-    CHECK(level.tools.size() == 3 && !level.darkZones.empty(), "3 ferramentas e zona escura");
+    CHECK(count(EnemyKind::Crawler) == 6 && count(EnemyKind::Shooter) == 4, "6 rastejantes e 4 lancadores");
+    CHECK(count(EnemyKind::FlyerPassive) == 3 && count(EnemyKind::FlyerChaser) == 3 && count(EnemyKind::FlyerShooter) == 2, "voadores: 3 passivos, 3 perseguidores e 2 atiradores");
+    CHECK(level.tools.size() == 3 && !level.darkZones.empty() && level.fallingObjects.size() == 5, "3 ferramentas, zona escura e 5 objetos caindo");
 }
 
 // Bot simples: anda para a direita, atira, pula obstaculos, sobe escada e escala parede.
@@ -354,6 +429,34 @@ Input botInput(const Game& game, int frame, int& jumpHold) {
         jumpHold = frame % 24 < 14 ? 1 : 0;
     }
 
+    // Para e atira no inimigo a frente; alterna com avancar para nunca travar
+    if (player.grounded() && !hazardAhead && frame / 240 % 2 == 0) {
+        const float playerX = box.x + box.w / 2.0f;
+        const float playerY = box.y + box.h / 2.0f;
+        for (const Enemy& enemy : game.enemies()) {
+            const float dx = enemy.box.x + enemy.box.w / 2.0f - playerX;
+            const float enemyY = enemy.box.y + enemy.box.h / 2.0f;
+            const bool clearPath = !room.overlapsSolid({playerX, enemyY, std::max(dx, 1.0f), 1.0f});
+            if (dx > 0.0f && dx < 110.0f && std::fabs(enemyY - playerY) < 64.0f && clearPath) {
+                in.right = false;
+                in.shootHeld = frame % 8 < 2;
+                if (enemyY < box.y && jumpHold <= 0) {
+                    jumpHold = 20;
+                }
+                break;
+            }
+        }
+    }
+
+    // Espera o objeto que esta tremendo ou caindo a frente, como uma pessoa faria
+    for (const FallingObject& object : game.hazards().fallingObjects()) {
+        const bool active = object.phase == FallingObject::Phase::Warning || object.phase == FallingObject::Phase::Falling;
+        const float gap = object.box.x - (box.x + box.w);
+        if (active && player.grounded() && gap > 0.0f && gap < 32.0f) {
+            in.right = false;
+        }
+    }
+
     in.jumpHeld = jumpHold > 0;
     jumpHold = std::max(jumpHold - 1, 0);
 
@@ -364,31 +467,42 @@ Input botInput(const Game& game, int frame, int& jumpHold) {
     return in;
 }
 
-void testBlockCanBeFinished() {
-    Driver driver(loadLevel(CNNX_LEVEL_PATH, "w1_f1_b1"));
-    int jumpHold = 0;
-    int frame = 0;
+struct BotRun {
+    int frames = 0;
     int deaths = 0;
-    bool wasDead = false;
     int bestX = 0;
-    for (; frame < 60 * 60 * 5 && driver.game.mode() == GameMode::Playing; ++frame) {
-        driver.step(botInput(driver.game, frame, jumpHold));
+};
+
+BotRun playBot(Driver& driver) {
+    BotRun run;
+    int jumpHold = 0;
+    bool wasDead = false;
+    for (; run.frames < 60 * 60 * 5 && driver.game.mode() == GameMode::Playing; ++run.frames) {
+        driver.step(botInput(driver.game, run.frames, jumpHold));
         const bool dead = driver.game.player().isDead();
-        deaths += dead && !wasDead ? 1 : 0;
+        run.deaths += dead && !wasDead ? 1 : 0;
         wasDead = dead;
-        bestX = std::max(bestX, static_cast<int>(driver.game.player().bounds().x));
+        run.bestX = std::max(run.bestX, static_cast<int>(driver.game.player().bounds().x));
     }
-    CHECK(driver.game.mode() == GameMode::Puzzle, "bot chega ao puzzle (x maximo=%d, ferramentas faltando=%d, mortes=%d)", bestX, driver.game.toolsMissing(), deaths);
-    std::printf("     tempo do bot: %.1f s, mortes: %d\n", frame / 60.0, deaths);
-    for (const ToolPickup& tool : driver.game.tools()) {
-        if (!tool.collected) {
-            std::printf("     ferramenta faltando: %s em x=%.0f y=%.0f\n", tool.kind.c_str(), tool.box.x, tool.box.y);
-        }
-    }
+    return run;
+}
+
+// Prova que o caminho existe. A rodada com inimigos so informa o desgaste: o bot
+// joga mal de proposito, e a dificuldade real e calibrada jogando.
+void testBlockCanBeFinished() {
+    LevelData route = loadLevel(CNNX_LEVEL_PATH, "w1_f1_b1");
+    route.enemies.clear();
+    Driver driver(std::move(route));
+    const BotRun run = playBot(driver);
+    CHECK(driver.game.mode() == GameMode::Puzzle, "bot percorre o bloco com todos os perigos (x maximo=%d, ferramentas faltando=%d)", run.bestX, driver.game.toolsMissing());
     if (driver.game.mode() == GameMode::Puzzle) {
         solvePuzzle(driver);
         CHECK(driver.game.mode() == GameMode::Complete, "bot conclui o bloco");
     }
+
+    Driver full(loadLevel(CNNX_LEVEL_PATH, "w1_f1_b1"));
+    const BotRun fullRun = playBot(full);
+    std::printf("     bot com inimigos: x maximo=%d de %d, %d mortes em %.0f s\n", fullRun.bestX, full.game.room().widthPixels(), fullRun.deaths, fullRun.frames / 60.0);
 }
 
 }  // namespace
@@ -396,6 +510,7 @@ void testBlockCanBeFinished() {
 void runGameTests() {
     testForceTable();
     testEnemyBehavior();
+    testFallingObject();
     testHazards();
     testRespawn();
     testDeath();

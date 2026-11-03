@@ -21,7 +21,7 @@ int knockDirection(const Box& player, const Box& source) {
 
 Game::Game(LevelData level)
     : level_(std::move(level)),
-      hazards_(level_.room, level_.darkZones),
+      hazards_(level_.room, level_.darkZones, level_.fallingObjects),
       strength_(level_.strength) {
     respawn();
 }
