@@ -6,13 +6,13 @@
 
 namespace {
 
-constexpr int kSpikeDamage = 4;
-constexpr int kShockDamage = 3;
+constexpr int kSpikeDamage = 3;
+constexpr int kShockDamage = 2;
 constexpr int kShockPeriod = 150;
 constexpr int kShockOnFrames = 75;
 constexpr int kCrumbleDelay = 30;
 constexpr int kCrumbleReturn = 180;
-constexpr int kFallingDamage = 3;
+constexpr int kFallingDamage = 2;
 constexpr float kFallingTriggerX = 64.0f;
 constexpr int kFallingWarning = 20;
 constexpr float kFallingGravity = 0.25f;

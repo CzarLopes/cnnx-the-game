@@ -251,12 +251,21 @@ void testLadder() {
 
 void testDamage() {
     Sim sim(flatRoom(), 56, 240);
-    CHECK(sim.player.takeDamage(3, -1) && sim.player.hp() == 13, "dano reduz a vida");
+    CHECK(sim.player.hp() == 30 && sim.player.maxHp() == 30, "comeca com 30 blocos de vida");
+    CHECK(sim.player.takeDamage(3, -1) && sim.player.hp() == 27, "dano reduz a vida");
     CHECK(sim.player.state() == PlayerState::Hurt, "dano causa recuo");
-    CHECK(!sim.player.takeDamage(3, -1) && sim.player.hp() == 13, "invulnerabilidade ignora dano");
+    CHECK(!sim.player.takeDamage(3, -1) && sim.player.hp() == 27, "invulnerabilidade ignora dano");
     sim.steps(61, {});
     CHECK(!sim.player.invulnerable() && sim.player.state() == PlayerState::Idle, "volta ao normal em cerca de 1 s");
-    CHECK(sim.player.takeDamage(13, 1) && sim.player.isDead(), "vida zerada mata");
+
+    sim.player.heal(2);
+    CHECK(sim.player.hp() == 29, "cura soma blocos");
+    sim.player.heal(10);
+    CHECK(sim.player.hp() == 30, "cura nao passa do maximo");
+    sim.player.setMaxHp(35);
+    CHECK(sim.player.hp() == 35 && sim.player.maxHp() == 35, "conquista soma na vida atual e na maxima");
+
+    CHECK(sim.player.takeDamage(35, 1) && sim.player.isDead(), "vida zerada mata");
 }
 
 }  // namespace

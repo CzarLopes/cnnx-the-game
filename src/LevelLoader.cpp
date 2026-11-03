@@ -86,6 +86,22 @@ int strengthOf(const json& level, const std::string& levelId) {
     fail(levelId, "falta o campo strength");
 }
 
+PuzzleKind puzzleOf(const json& level, const std::string& levelId) {
+    for (const json& field : level.at("fieldInstances")) {
+        if (field.at("__identifier") == "puzzle" && field.at("__value").is_string()) {
+            const std::string name = field.at("__value").get<std::string>();
+            if (name == "rj45") {
+                return PuzzleKind::Rj45;
+            }
+            if (name == "tomada") {
+                return PuzzleKind::Tomada;
+            }
+            fail(levelId, "puzzle desconhecido: " + name);
+        }
+    }
+    fail(levelId, "falta o campo puzzle");
+}
+
 LevelData parseLevelJson(const json& project, const std::string& levelId) {
     const json& level = findByIdentifier(project.at("levels"), "identifier", levelId.c_str(), levelId);
     const json& layers = level.at("layerInstances");
@@ -97,6 +113,7 @@ LevelData parseLevelJson(const json& project, const std::string& levelId) {
     std::vector<ToolPickup> tools;
     std::vector<Box> darkZones;
     std::vector<Box> fallingObjects;
+    std::vector<HpUpgrade> hpUpgrades;
     std::optional<Box> door;
     bool hasStart = false;
 
@@ -125,6 +142,8 @@ LevelData parseLevelJson(const json& project, const std::string& levelId) {
             enemies.push_back({EnemyKind::FlyerShooter, centerX, box.y + box.h / 2.0f});
         } else if (name == "FallingObject") {
             fallingObjects.push_back(box);
+        } else if (name == "HpUpgrade") {
+            hpUpgrades.push_back({stringField(entity, "id", levelId), box});
         } else if (name == "Tool") {
             tools.push_back({stringField(entity, "kind", levelId), box, false});
         } else if (name == "Door") {
@@ -142,8 +161,10 @@ LevelData parseLevelJson(const json& project, const std::string& levelId) {
     if (!door) {
         fail(levelId, "falta Door");
     }
+    const int strength = strengthOf(level, levelId);
+    const PuzzleKind puzzle = puzzleOf(level, levelId);
     return {Room(std::move(rows)), std::move(enemies), std::move(tools), *door, std::move(darkZones),
-            strengthOf(level, levelId), std::move(fallingObjects)};
+            strength, std::move(fallingObjects), std::move(hpUpgrades), puzzle};
 }
 
 }  // namespace

@@ -1,6 +1,7 @@
 #include "Game.h"
 
 #include <algorithm>
+#include <optional>
 #include <utility>
 
 namespace {
@@ -19,17 +20,33 @@ int knockDirection(const Box& player, const Box& source) {
 
 }  // namespace
 
-Game::Game(LevelData level)
-    : level_(std::move(level)),
+Game::Game(LevelData level, Profile profile, unsigned seed)
+    : Game(std::vector<LevelData>{std::move(level)}, std::move(profile), seed) {}
+
+Game::Game(std::vector<LevelData> levels, Profile profile, unsigned seed)
+    : levels_(std::move(levels)),
+      level_(levels_.at(0)),
       hazards_(level_.room, level_.darkZones, level_.fallingObjects),
-      strength_(level_.strength) {
+      profile_(std::move(profile)),
+      random_(seed) {
+    enterLevel(0);
+}
+
+void Game::enterLevel(size_t index) {
+    levelIndex_ = index;
+    level_ = levels_[index];
+    hazards_ = Hazards(level_.room, level_.darkZones, level_.fallingObjects);
+    strength_ = level_.strength;
+    doorOpen_ = false;
+    mode_ = GameMode::Playing;
     respawn();
 }
 
 void Game::respawn() {
-    player_.spawn(level_.room.spawnX(), level_.room.spawnFeetY());
+    player_.spawn(level_.room.spawnX(), level_.room.spawnFeetY(), profile_.maxHp());
     shots_.clear();
     enemyShots_.clear();
+    healItems_.clear();
     enemies_.clear();
     for (const EnemySpawn& spawn : level_.enemies) {
         enemies_.push_back(makeEnemy(spawn, strength_));
@@ -41,15 +58,6 @@ void Game::respawn() {
 
 void Game::setStrength(int strength) {
     strength_ = std::clamp(strength, kMinStrength, kMaxStrength);
-    respawn();
-}
-
-void Game::restartBlock() {
-    for (ToolPickup& tool : level_.tools) {
-        tool.collected = false;
-    }
-    doorOpen_ = false;
-    mode_ = GameMode::Playing;
     respawn();
 }
 
@@ -69,7 +77,7 @@ void Game::step(const Input& in) {
             break;
         case GameMode::Complete:
             if (in.jumpPressed) {
-                restartBlock();
+                enterLevel((levelIndex_ + 1) % levels_.size());
             }
             break;
     }
@@ -77,12 +85,14 @@ void Game::step(const Input& in) {
 
 void Game::stepPlaying(const Input& in) {
     messageTimer_ = std::max(messageTimer_ - 1, 0);
+    upgradeTimer_ = std::max(upgradeTimer_ - 1, 0);
 
     player_.update(in, level_.room, shots_);
     updateShots(shots_, level_.room);
     hazards_.update(level_.room, player_.bounds(), player_.grounded());
     updateEnemies(enemies_, enemyShots_, level_.room, player_.bounds(), strength_);
     updateEnemyShots(enemyShots_, level_.room);
+    updateHealItems(healItems_, level_.room);
     resolveCombat();
 
     if (player_.isDead()) {
@@ -96,8 +106,15 @@ void Game::stepPlaying(const Input& in) {
     if (hazardDamage > 0) {
         player_.takeDamage(hazardDamage, -player_.facing());
     }
-    collectTools();
+    collectItems();
     tryOpenDoor(in);
+}
+
+void Game::dropHealItem(const Enemy& enemy) {
+    const std::optional<HealSize> size = rollDrop(strength_, random_);
+    if (size) {
+        healItems_.push_back(makeHealItem(*size, centerX(enemy.box), enemy.box.y + enemy.box.h / 2.0f));
+    }
 }
 
 void Game::resolveCombat() {
@@ -111,6 +128,7 @@ void Game::resolveCombat() {
         }
         hit->hp -= shotDamage(*shot);
         if (hit->hp <= 0) {
+            dropHealItem(*hit);
             enemies_.erase(hit);
         }
         shot = shots_.erase(shot);
@@ -132,13 +150,31 @@ void Game::resolveCombat() {
                       enemyShots_.end());
 }
 
-void Game::collectTools() {
+void Game::collectItems() {
     const Box playerBox = player_.bounds();
     for (ToolPickup& tool : level_.tools) {
         if (!tool.collected && boxesOverlap(playerBox, tool.box)) {
             tool.collected = true;
         }
     }
+
+    for (const HpUpgrade& upgrade : level_.hpUpgrades) {
+        if (boxesOverlap(playerBox, upgrade.box) && profile_.addUpgrade(upgrade.id)) {
+            player_.setMaxHp(profile_.maxHp());
+            upgradeTimer_ = kMessageFrames;
+        }
+    }
+
+    // Com a vida cheia o item fica no chao para quando precisar
+    healItems_.erase(std::remove_if(healItems_.begin(), healItems_.end(),
+                                    [this, &playerBox](const HealItem& item) {
+                                        if (player_.hp() >= player_.maxHp() || !boxesOverlap(playerBox, item.box)) {
+                                            return false;
+                                        }
+                                        player_.heal(healAmount(item.size));
+                                        return true;
+                                    }),
+                     healItems_.end());
 }
 
 void Game::tryOpenDoor(const Input& in) {
@@ -149,7 +185,7 @@ void Game::tryOpenDoor(const Input& in) {
         messageTimer_ = kMessageFrames;
         return;
     }
-    puzzle_ = PuzzleRj45(static_cast<unsigned>(frame_));
+    puzzle_ = WirePuzzle(level_.puzzle, static_cast<unsigned>(frame_));
     mode_ = GameMode::Puzzle;
 }
 
@@ -166,7 +202,7 @@ void Game::stepPuzzle(const Input& in) {
     if (in.shootPressed) {
         puzzle_.test();
     }
-    if (puzzle_.status() == PuzzleRj45::Status::Solved) {
+    if (puzzle_.status() == WirePuzzle::Status::Solved) {
         doorOpen_ = true;
         mode_ = GameMode::Complete;
     }

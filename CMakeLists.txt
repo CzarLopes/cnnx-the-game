@@ -30,10 +30,12 @@ add_library(cnnx_core STATIC
     src/Enemy.cpp
     src/Game.cpp
     src/Hazards.cpp
+    src/Items.cpp
     src/LevelLoader.cpp
     src/Player.cpp
-    src/PuzzleRj45.cpp
+    src/Profile.cpp
     src/Room.cpp
+    src/WirePuzzle.cpp
 )
 target_include_directories(cnnx_core PUBLIC src)
 target_link_libraries(cnnx_core PUBLIC nlohmann_json::nlohmann_json)

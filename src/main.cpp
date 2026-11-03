@@ -1,7 +1,10 @@
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
+#include <ctime>
 #include <exception>
 #include <string>
+#include <vector>
 
 #include "Game.h"
 #include "GameRender.h"
@@ -56,13 +59,24 @@ void handleDevKeys(Game& game) {
 #endif
 }
 
+std::string savePath() {
+    const char* appData = std::getenv("APPDATA");
+    const std::string folder = appData ? std::string(appData) + "/CnnxResgateDosFreelas/"
+                                       : std::string(GetApplicationDirectory());
+    return folder + "save.json";
+}
+
 int run() {
     SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_RESIZABLE);
-    InitWindow(kViewWidth * kStartScale, kViewHeight * kStartScale, "CNNX");
+    InitWindow(kViewWidth * kStartScale, kViewHeight * kStartScale, "Cnnx em o Resgate dos Freelas");
     SetWindowMinSize(kViewWidth, kViewHeight);
 
     const std::string levelPath = std::string(GetApplicationDirectory()) + "assets/levels/cnnx.ldtk";
-    Game game(loadLevel(levelPath, "w1_f1_b1"));
+    std::vector<LevelData> levels;
+    for (const char* id : {"w1_f1_b1", "w1_f1_b2"}) {
+        levels.push_back(loadLevel(levelPath, id));
+    }
+    Game game(std::move(levels), Profile(savePath()), static_cast<unsigned>(std::time(nullptr)));
 
     RenderTexture2D target = LoadRenderTexture(kViewWidth, kViewHeight);
     SetTextureFilter(target.texture, TEXTURE_FILTER_POINT);

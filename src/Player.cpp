@@ -76,8 +76,10 @@ void updateShots(std::vector<Shot>& shots, const Room& room) {
                 shots.end());
 }
 
-void Player::spawn(float centerX, float feetY) {
+void Player::spawn(float centerX, float feetY, int maxHp) {
     *this = Player{};
+    maxHp_ = maxHp;
+    hp_ = maxHp;
     x_ = centerX - kWidth / 2.0f;
     y_ = feetY - kHeight;
     grounded_ = true;
@@ -230,6 +232,15 @@ bool Player::takeDamage(int amount, int knockDir) {
     vx_ = static_cast<float>(knockDir) * kKnockbackSpeedX;
     vy_ = -kKnockbackSpeedY;
     return true;
+}
+
+void Player::heal(int amount) {
+    hp_ = std::min(hp_ + amount, maxHp_);
+}
+
+void Player::setMaxHp(int maxHp) {
+    hp_ += std::max(maxHp - maxHp_, 0);
+    maxHp_ = maxHp;
 }
 
 void Player::updateHurt(const Room& room) {

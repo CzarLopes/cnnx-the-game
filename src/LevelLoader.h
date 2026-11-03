@@ -5,11 +5,18 @@
 
 #include "Enemy.h"
 #include "Room.h"
+#include "WirePuzzle.h"
 
 struct ToolPickup {
     std::string kind;
     Box box;
     bool collected;
+};
+
+// Conquista escondida que aumenta a vida maxima de forma permanente.
+struct HpUpgrade {
+    std::string id;
+    Box box;
 };
 
 struct LevelData {
@@ -20,6 +27,8 @@ struct LevelData {
     std::vector<Box> darkZones;
     int strength;
     std::vector<Box> fallingObjects = {};
+    std::vector<HpUpgrade> hpUpgrades = {};
+    PuzzleKind puzzle = PuzzleKind::Rj45;
 };
 
 // Lanca std::runtime_error com o motivo se o arquivo ou o nivel estiverem invalidos.

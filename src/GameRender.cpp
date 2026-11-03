@@ -32,6 +32,10 @@ constexpr Color kFlyerChaserColor = {230, 110, 200, 255};
 constexpr Color kFlyerShooterColor = {190, 90, 240, 255};
 constexpr Color kEnemyShotColor = {255, 70, 70, 255};
 constexpr Color kToolColor = {120, 245, 210, 255};
+constexpr Color kUpgradeColor = {255, 215, 0, 255};
+constexpr Color kHealSmallColor = {255, 170, 180, 255};
+constexpr Color kHealMediumColor = {255, 110, 130, 255};
+constexpr Color kHealLargeColor = {240, 50, 80, 255};
 constexpr Color kDoorClosedColor = {170, 60, 60, 255};
 constexpr Color kDoorOpenColor = {70, 180, 90, 255};
 constexpr Color kPanelColor = {14, 16, 28, 255};
@@ -137,6 +141,24 @@ void drawTools(const Game& game, const Camera2i& cam) {
             drawBox(tool.box, cam, kToolColor);
         }
     }
+    for (const HpUpgrade& upgrade : game.hpUpgrades()) {
+        if (!game.profile().hasUpgrade(upgrade.id)) {
+            drawBox(upgrade.box, cam, kUpgradeColor);
+        }
+    }
+}
+
+void drawHealItems(const Game& game, const Camera2i& cam) {
+    for (const HealItem& item : game.healItems()) {
+        // Pisca quando esta para sumir
+        if (item.life < 120 && game.frame() % 8 < 3) {
+            continue;
+        }
+        const Color color = item.size == HealSize::Small    ? kHealSmallColor
+                            : item.size == HealSize::Medium ? kHealMediumColor
+                                                            : kHealLargeColor;
+        drawBox(item.box, cam, color);
+    }
 }
 
 Color enemyColor(EnemyKind kind) {
@@ -230,18 +252,26 @@ void drawDarkness(const Game& game, const Camera2i& cam) {
     EndBlendMode();
 }
 
+// Vida em uma coluna so, que cresce para cima; o lado fica livre para a barra de especial.
+// Acima de 66 blocos eles afinam para caber os 100 na altura da tela.
+void drawHpBar(const Player& player) {
+    constexpr int kBarX = 6;
+    constexpr int kBarBottom = kViewHeight - 20;
+    constexpr int kThickLimit = 66;
+
+    const int step = player.maxHp() > kThickLimit ? 2 : 3;
+    for (int block = 0; block < player.maxHp(); ++block) {
+        const int y = kBarBottom - (block + 1) * step;
+        DrawRectangle(kBarX, y, 6, step - 1, block < player.hp() ? kBarColor : kBarBackColor);
+    }
+}
+
 void drawHud(const Game& game) {
     const Player& player = game.player();
-    constexpr int kBarX = 6;
-    constexpr int kBarY = 18;
-    constexpr int kSegment = 3;
-
-    DrawRectangle(kBarX, kBarY, 8, Player::kMaxHp * kSegment + 2, kBarBackColor);
-    const int filled = player.hp() * kSegment;
-    DrawRectangle(kBarX + 1, kBarY + 1 + (Player::kMaxHp * kSegment - filled), 6, filled, kBarColor);
+    drawHpBar(player);
 
     const int total = static_cast<int>(game.tools().size());
-    DrawText(TextFormat("Forca %d", game.strength()), 6, 4, 10, RAYWHITE);
+    DrawText(TextFormat("Forca %d", game.strength()), 30, 4, 10, RAYWHITE);
     DrawText(TextFormat("Ferramentas %d/%d", total - game.toolsMissing(), total), 150, 4, 10, RAYWHITE);
     DrawText(playerStateName(player.state()), 6, kViewHeight - 14, 10, RAYWHITE);
 
@@ -250,6 +280,12 @@ void drawHud(const Game& game) {
         const int width = MeasureText(text, 10);
         DrawRectangle((kViewWidth - width) / 2 - 4, 40, width + 8, 16, kPanelColor);
         DrawText(text, (kViewWidth - width) / 2, 43, 10, RAYWHITE);
+    }
+    if (game.showingUpgradeMessage()) {
+        const char* text = TextFormat("Vida maxima +%d!", Profile::kHpPerUpgrade);
+        const int width = MeasureText(text, 10);
+        DrawRectangle((kViewWidth - width) / 2 - 4, 60, width + 8, 16, kPanelColor);
+        DrawText(text, (kViewWidth - width) / 2, 63, 10, kUpgradeColor);
     }
 }
 
@@ -261,7 +297,7 @@ Color wireColor(int wire) {
         {150, 95, 50, 255},
     };
     // Na ordem T568B, so azul e branco-azul invertem o padrao branco-cor
-    static constexpr int kColorIndex[PuzzleRj45::kWireCount] = {0, 0, 1, 2, 2, 1, 3, 3};
+    static constexpr int kColorIndex[WirePuzzle::kMaxWires] = {0, 0, 1, 2, 2, 1, 3, 3};
     return kColors[kColorIndex[wire]];
 }
 
@@ -269,45 +305,60 @@ bool wireIsStriped(int wire) {
     return wire == 0 || wire == 2 || wire == 4 || wire == 6;
 }
 
-void drawWire(int wire, int x, int y, int height) {
-    constexpr int kWidth = 12;
-    DrawRectangle(x, y, kWidth, height, wireIsStriped(wire) ? RAYWHITE : wireColor(wire));
+void drawRj45Wire(int wire, int x, int y, int width, int height) {
+    DrawRectangle(x, y, width, height, wireIsStriped(wire) ? RAYWHITE : wireColor(wire));
     if (wireIsStriped(wire)) {
         for (int stripe = 0; stripe < height; stripe += 12) {
-            DrawRectangle(x, y + stripe, kWidth, std::min(5, height - stripe), wireColor(wire));
+            DrawRectangle(x, y + stripe, width, std::min(5, height - stripe), wireColor(wire));
         }
     }
 }
 
+void drawTomadaWire(int wire, int x, int y, int width, int height) {
+    // Fase, neutro e terra
+    static constexpr Color kColors[3] = {{220, 50, 50, 255}, {50, 100, 230, 255}, {60, 180, 80, 255}};
+    DrawRectangle(x, y, width, height, kColors[wire]);
+}
+
 void drawPuzzle(const Game& game) {
-    constexpr int kFirstX = 42;
-    constexpr int kStepX = 22;
     constexpr int kWireY = 60;
     constexpr int kWireHeight = 96;
 
-    const PuzzleRj45& puzzle = game.puzzle();
-    ClearBackground(kPanelColor);
-    DrawText("Monte o RJ45", 58, 18, 20, RAYWHITE);
+    const WirePuzzle& puzzle = game.puzzle();
+    const bool tomada = puzzle.kind() == PuzzleKind::Tomada;
+    const int stepX = tomada ? 48 : 22;
+    const int width = tomada ? 24 : 12;
+    const int firstX = (kViewWidth - (puzzle.wireCount() - 1) * stepX - width) / 2;
 
-    for (int slot = 0; slot < PuzzleRj45::kWireCount; ++slot) {
-        const int x = kFirstX + slot * kStepX;
-        const int lift = puzzle.held() == slot ? 8 : 0;
-        drawWire(puzzle.wireAt(slot), x, kWireY - lift, kWireHeight);
+    ClearBackground(kPanelColor);
+    const char* title = tomada ? "Monte a tomada" : "Monte o RJ45";
+    DrawText(title, (kViewWidth - MeasureText(title, 20)) / 2, 18, 20, RAYWHITE);
+
+    for (int slot = 0; slot < puzzle.wireCount(); ++slot) {
+        const int x = firstX + slot * stepX;
+        const int y = kWireY - (puzzle.held() == slot ? 8 : 0);
+        if (tomada) {
+            drawTomadaWire(puzzle.wireAt(slot), x, y, width, kWireHeight);
+            DrawText(TextFormat("%c", "FNT"[slot]), x + width / 2 - 3, kWireY - 22, 10, RAYWHITE);
+        } else {
+            drawRj45Wire(puzzle.wireAt(slot), x, y, width, kWireHeight);
+        }
         if (puzzle.cursor() == slot) {
-            DrawRectangle(x, kWireY + kWireHeight + 4, 12, 3, kChargeMidColor);
+            DrawRectangle(x, kWireY + kWireHeight + 4, width, 3, kChargeMidColor);
         }
     }
 
-    if (puzzle.status() == PuzzleRj45::Status::Failed) {
-        DrawText(TextFormat("Falha: %d de 8 certos", puzzle.correctCount()), 58, 172, 10, kHurtColor);
+    if (puzzle.status() == WirePuzzle::Status::Failed) {
+        DrawText(TextFormat("Falha: %d de %d certos", puzzle.correctCount(), puzzle.wireCount()), 58, 172, 10, kHurtColor);
     }
     DrawText("Setas movem   Z pega/troca   C testa", 20, 196, 10, RAYWHITE);
 }
 
-void drawComplete() {
+void drawComplete(const Game& game) {
     ClearBackground(kPanelColor);
     DrawText("Bloco concluido!", 34, 80, 20, kDoorOpenColor);
-    DrawText("Porta aberta. Z joga de novo", 44, 120, 10, RAYWHITE);
+    const char* next = game.hasNextLevel() ? "Porta aberta. Z vai para o proximo bloco" : "Fim dos blocos prontos. Z recomeca";
+    DrawText(next, (kViewWidth - MeasureText(next, 10)) / 2, 120, 10, RAYWHITE);
 }
 
 }  // namespace
@@ -318,7 +369,7 @@ void drawGame(const Game& game) {
         return;
     }
     if (game.mode() == GameMode::Complete) {
-        drawComplete();
+        drawComplete(game);
         return;
     }
 
@@ -333,6 +384,7 @@ void drawGame(const Game& game) {
     drawRoom(game, cam);
     drawDoor(game, cam);
     drawTools(game, cam);
+    drawHealItems(game, cam);
     drawEnemies(game, cam);
     drawShots(game, cam);
     drawPlayer(game, cam);

@@ -1,28 +1,30 @@
-#include "PuzzleRj45.h"
+#include "WirePuzzle.h"
 
 #include <algorithm>
 #include <numeric>
 #include <random>
 #include <utility>
 
-PuzzleRj45::PuzzleRj45(unsigned seed) {
-    std::iota(wires_.begin(), wires_.end(), 0);
+WirePuzzle::WirePuzzle(PuzzleKind kind, unsigned seed)
+    : kind_(kind), wireCount_(kind == PuzzleKind::Tomada ? 3 : kMaxWires) {
+    const auto end = wires_.begin() + wireCount_;
+    std::iota(wires_.begin(), end, 0);
     std::mt19937 random(seed);
-    std::shuffle(wires_.begin(), wires_.end(), random);
-    if (correctCount() == kWireCount) {
+    std::shuffle(wires_.begin(), end, random);
+    if (correctCount() == wireCount_) {
         std::swap(wires_[0], wires_[1]);
     }
 }
 
-void PuzzleRj45::moveCursor(int dir) {
+void WirePuzzle::moveCursor(int dir) {
     if (status_ == Status::Solved) {
         return;
     }
-    cursor_ = (cursor_ + dir + kWireCount) % kWireCount;
+    cursor_ = (cursor_ + dir + wireCount_) % wireCount_;
     status_ = Status::Editing;
 }
 
-void PuzzleRj45::select() {
+void WirePuzzle::select() {
     if (status_ == Status::Solved) {
         return;
     }
@@ -35,17 +37,17 @@ void PuzzleRj45::select() {
     }
 }
 
-void PuzzleRj45::test() {
+void WirePuzzle::test() {
     if (status_ == Status::Solved) {
         return;
     }
     held_ = -1;
-    status_ = correctCount() == kWireCount ? Status::Solved : Status::Failed;
+    status_ = correctCount() == wireCount_ ? Status::Solved : Status::Failed;
 }
 
-int PuzzleRj45::correctCount() const {
+int WirePuzzle::correctCount() const {
     int correct = 0;
-    for (int slot = 0; slot < kWireCount; ++slot) {
+    for (int slot = 0; slot < wireCount_; ++slot) {
         correct += wires_[slot] == slot ? 1 : 0;
     }
     return correct;

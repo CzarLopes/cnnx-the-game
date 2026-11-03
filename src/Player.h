@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "Input.h"
+#include "Profile.h"
 #include "Room.h"
 
 enum class PlayerState { Idle, Run, Jump, Fall, Dash, AirDash, WallSlide, WallKick, Climb, Hurt, Dead };
@@ -28,12 +29,14 @@ public:
     static constexpr float kHeight = 28.0f;
     static constexpr int kChargeLevel1 = 30;
     static constexpr int kChargeLevel2 = 90;
-    static constexpr int kMaxHp = 16;
 
-    void spawn(float centerX, float feetY);
+    void spawn(float centerX, float feetY, int maxHp = Profile::kBaseMaxHp);
     void update(const Input& in, const Room& room, std::vector<Shot>& shots);
     // knockDir empurra para esse lado. Retorna false se o dano foi ignorado.
     bool takeDamage(int amount, int knockDir);
+    void heal(int amount);
+    // O ganho de vida maxima tambem entra na vida atual.
+    void setMaxHp(int maxHp);
 
     Box bounds() const { return {x_, y_, kWidth, kHeight}; }
     PlayerState state() const { return state_; }
@@ -43,6 +46,7 @@ public:
     float vx() const { return vx_; }
     float vy() const { return vy_; }
     int hp() const { return hp_; }
+    int maxHp() const { return maxHp_; }
     bool isDead() const { return state_ == PlayerState::Dead; }
     bool invulnerable() const { return invulnTimer_ > 0; }
 
@@ -75,7 +79,8 @@ private:
     int jumpBuffer_ = 0;
     int coyote_ = 0;
     int charge_ = 0;
-    int hp_ = kMaxHp;
+    int maxHp_ = Profile::kBaseMaxHp;
+    int hp_ = Profile::kBaseMaxHp;
     int invulnTimer_ = 0;
     int hurtTimer_ = 0;
 };

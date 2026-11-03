@@ -158,9 +158,9 @@ void updateShooter(Enemy& enemy, std::vector<EnemyShot>& shots, const Box& targe
 
 const ForceStats& forceStats(int strength) {
     static constexpr ForceStats kStats[kMaxStrength] = {
-        {2, 2, 2, 1.0f},
-        {4, 3, 3, 1.15f},
-        {7, 4, 4, 1.3f},
+        {2, 1, 1, 1.0f},
+        {4, 2, 2, 1.15f},
+        {7, 3, 3, 1.3f},
     };
     return kStats[std::clamp(strength, kMinStrength, kMaxStrength) - 1];
 }

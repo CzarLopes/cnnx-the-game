@@ -43,10 +43,36 @@ Estes numeros sao um ponto de partida e devem ser calibrados jogando.
 
 | Forca | Vida | Dano de contato | Dano do projetil | Velocidade |
 |---|---|---|---|---|
-| 1 | 2 | 2 | 2 | 100% |
-| 2 | 4 | 3 | 3 | 115% |
-| 3 | 7 | 4 | 4 | 130% |
+| 1 | 2 | 1 | 1 | 100% |
+| 2 | 4 | 2 | 2 | 115% |
+| 3 | 7 | 3 | 3 | 130% |
 
-- Jogador: 16 de vida. Tiro normal causa 1, carga media 2 e carga total 4.
-- Espinho: 4 de dano. Choque: 3 de dano quando ligado. Objeto caindo: 3 de dano.
+- Tiro normal causa 1, carga media 2 e carga total 4.
+- Espinho: 3 de dano. Choque: 2 de dano quando ligado. Objeto caindo: 2 de dano.
+- O maior dano da fase vem do boss: no maximo 5 blocos, com o ataque especial.
 - Primeiro bloco: 18 inimigos em cerca de 7 telas, sendo 6 rastejantes, 4 lancadores, 3 voadores passivos, 3 perseguidores e 2 atiradores.
+- Segundo bloco: 21 inimigos, sendo 6 rastejantes, 5 lancadores, 4 voadores passivos, 4 perseguidores e 2 atiradores.
+
+## Vida
+
+- O jogador comeca com 30 blocos de vida, mostrados em uma coluna so que cresce para cima.
+- O lado da barra de vida fica reservado para a futura barra de especial das armas.
+- Cada fase esconde uma conquista que aumenta a vida maxima em 5, de forma permanente.
+- A vida maxima chega a 100, entao o jogo precisa ter 14 conquistas escondidas.
+- As conquistas ficam em um arquivo de save e continuam depois de morrer ou fechar o jogo.
+
+## Curas
+
+- Cada inimigo solta no maximo um item, sorteado do maior para o menor.
+- Grande: 20% de chance, cura 10 blocos, so nos inimigos de forca 3.
+- Medio: 40% de chance, cura 5 blocos.
+- Pequeno: 70% de chance, cura 2 blocos.
+- Com isso, a chance real de cada item por inimigo muda: na forca 2, 40% medio, 42% pequeno e 18% nada.
+- O item fica 8 segundos no chao. Com a vida cheia, ele nao e consumido.
+
+## Mini-desafios por bloco
+
+- `w1_f1_b1`: RJ45, com alicate de crimpar, cabo e conector.
+- `w1_f1_b2`: tomada, com chave de fenda, fio e tomada.
+
+A lista de tudo que vai precisar de arte fica em [sprites.md](sprites.md).

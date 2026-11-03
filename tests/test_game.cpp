@@ -1,5 +1,10 @@
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <filesystem>
+#include <fstream>
+#include <optional>
+#include <random>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -9,7 +14,7 @@
 #include "Game.h"
 #include "Hazards.h"
 #include "LevelLoader.h"
-#include "PuzzleRj45.h"
+#include "WirePuzzle.h"
 #include "check.h"
 
 namespace {
@@ -33,7 +38,8 @@ struct Driver {
     Game game;
     Input previous;
 
-    explicit Driver(LevelData level) : game(std::move(level)) {}
+    explicit Driver(LevelData level, unsigned seed = 1) : game(std::move(level), Profile(), seed) {}
+    explicit Driver(std::vector<LevelData> levels) : game(std::move(levels), Profile(), 1) {}
 
     void step(Input held) {
         game.step(pressed(held, previous));
@@ -58,7 +64,7 @@ void solvePuzzle(Driver& driver) {
     Input select;
     select.jumpHeld = true;
 
-    for (int slot = 0; slot < PuzzleRj45::kWireCount; ++slot) {
+    for (int slot = 0; slot < driver.game.puzzle().wireCount(); ++slot) {
         if (driver.game.puzzle().wireAt(slot) == slot) {
             continue;
         }
@@ -206,9 +212,9 @@ void testFallingObject() {
     bool hit = false;
     for (int i = 0; i < 80 && hazards.fallingObjects()[0].phase != FallingObject::Phase::Gone; ++i) {
         hazards.update(room, below, true);
-        hit = hit || hazards.damageAt(room, below) == 3;
+        hit = hit || hazards.damageAt(room, below) == 2;
     }
-    CHECK(hit, "objeto caindo causa 3 de dano");
+    CHECK(hit, "objeto caindo causa 2 de dano");
     CHECK(hazards.fallingObjects()[0].phase == FallingObject::Phase::Gone, "objeto some ao bater no chao");
 
     for (int i = 0; i < 245; ++i) {
@@ -230,11 +236,11 @@ void testHazards() {
         "##########",
     });
     Hazards hazards(room, {{32, 16, 32, 16}});
-    CHECK(hazards.damageAt(room, {48, 20, 14, 28}) == 4, "espinho causa 4");
+    CHECK(hazards.damageAt(room, {48, 20, 14, 28}) == 3, "espinho causa 3");
     CHECK(hazards.damageAt(room, {16, 36, 14, 12}) == 0, "tile ao lado do espinho nao causa dano");
 
     const Box onShock = {64, 20, 14, 28};
-    CHECK(hazards.shockOn() && hazards.damageAt(room, onShock) == 3, "choque ligado causa 3");
+    CHECK(hazards.shockOn() && hazards.damageAt(room, onShock) == 2, "choque ligado causa 2");
     for (int i = 0; i < 80; ++i) {
         hazards.update(room, {-100, -100, 1, 1}, false);
     }
@@ -277,7 +283,7 @@ void testRespawn() {
 
     driver.game.respawn();
     CHECK(driver.game.enemies().size() == 2 && driver.game.toolsMissing() == 0, "renascer restaura inimigos e mantem ferramentas");
-    CHECK(driver.game.player().hp() == Player::kMaxHp, "renascer restaura a vida");
+    CHECK(driver.game.player().hp() == 30, "renascer restaura a vida");
 
     driver.game.setStrength(3);
     CHECK(driver.game.enemies()[0].hp == 7, "F3 aplica a forca 3");
@@ -292,7 +298,7 @@ void testDeath() {
     }
     CHECK(driver.game.player().isDead(), "morre depois de varios toques");
     driver.steps(61);
-    CHECK(!driver.game.player().isDead() && driver.game.player().hp() == Player::kMaxHp, "renasce sozinho depois de morrer");
+    CHECK(!driver.game.player().isDead() && driver.game.player().hp() == 30, "renasce sozinho depois de morrer");
 }
 
 void testDoor() {
@@ -317,37 +323,183 @@ void testDoor() {
 }
 
 void testPuzzle() {
-    PuzzleRj45 puzzle(7);
-    CHECK(puzzle.correctCount() < PuzzleRj45::kWireCount, "puzzle comeca embaralhado");
-    puzzle.test();
-    CHECK(puzzle.status() == PuzzleRj45::Status::Failed, "teste falha com a ordem errada");
+    for (const PuzzleKind kind : {PuzzleKind::Rj45, PuzzleKind::Tomada}) {
+        const char* name = kind == PuzzleKind::Rj45 ? "RJ45" : "tomada";
+        WirePuzzle puzzle(kind, 7);
+        CHECK(puzzle.correctCount() < puzzle.wireCount(), "%s comeca embaralhado", name);
+        puzzle.test();
+        CHECK(puzzle.status() == WirePuzzle::Status::Failed, "%s: teste falha com a ordem errada", name);
 
-    int wrongOrderRuns = 0;
-    for (unsigned seed = 1; seed < 200; ++seed) {
-        wrongOrderRuns += PuzzleRj45(seed).correctCount() < PuzzleRj45::kWireCount ? 1 : 0;
-    }
-    CHECK(wrongOrderRuns == 199, "nenhuma semente comeca resolvida");
+        int wrongOrderRuns = 0;
+        for (unsigned seed = 1; seed < 200; ++seed) {
+            const WirePuzzle scrambled(kind, seed);
+            wrongOrderRuns += scrambled.correctCount() < scrambled.wireCount() ? 1 : 0;
+        }
+        CHECK(wrongOrderRuns == 199, "%s: nenhuma semente comeca resolvida", name);
 
-    PuzzleRj45 solved(3);
-    for (int slot = 0; slot < PuzzleRj45::kWireCount; ++slot) {
-        int from = slot;
-        while (solved.wireAt(from) != slot) {
-            ++from;
+        WirePuzzle solved(kind, 3);
+        for (int slot = 0; slot < solved.wireCount(); ++slot) {
+            int from = slot;
+            while (solved.wireAt(from) != slot) {
+                ++from;
+            }
+            if (from == slot) {
+                continue;
+            }
+            while (solved.cursor() != from) {
+                solved.moveCursor(1);
+            }
+            solved.select();
+            while (solved.cursor() != slot) {
+                solved.moveCursor(1);
+            }
+            solved.select();
         }
-        if (from == slot) {
-            continue;
-        }
-        while (solved.cursor() != from) {
-            solved.moveCursor(1);
-        }
-        solved.select();
-        while (solved.cursor() != slot) {
-            solved.moveCursor(1);
-        }
-        solved.select();
+        solved.test();
+        CHECK(solved.status() == WirePuzzle::Status::Solved, "%s: ordem certa resolve", name);
     }
-    solved.test();
-    CHECK(solved.status() == PuzzleRj45::Status::Solved, "ordem T568B resolve");
+    CHECK(WirePuzzle(PuzzleKind::Rj45).wireCount() == 8 && WirePuzzle(PuzzleKind::Tomada).wireCount() == 3, "RJ45 tem 8 fios e tomada tem 3");
+}
+
+void testDrops() {
+    constexpr int kRolls = 200000;
+    std::mt19937 random(42);
+    const auto rates = [&random](int strength) {
+        std::array<double, 4> counts{};
+        for (int i = 0; i < kRolls; ++i) {
+            const std::optional<HealSize> drop = rollDrop(strength, random);
+            counts[drop ? static_cast<int>(*drop) : 3] += 1.0 / kRolls;
+        }
+        return counts;
+    };
+    const auto near = [](double value, double expected) { return std::fabs(value - expected) < 0.01; };
+
+    const std::array<double, 4> low = rates(2);
+    CHECK(low[2] == 0.0, "forca 2 nao solta item grande");
+    CHECK(near(low[1], 0.4) && near(low[0], 0.42) && near(low[3], 0.18), "forca 2: medio %.2f, pequeno %.2f, nada %.2f", low[1], low[0], low[3]);
+
+    const std::array<double, 4> high = rates(3);
+    CHECK(near(high[2], 0.2) && near(high[1], 0.32) && near(high[0], 0.336), "forca 3: grande %.2f, medio %.2f, pequeno %.2f", high[2], high[1], high[0]);
+
+    CHECK(healAmount(HealSize::Small) == 2 && healAmount(HealSize::Medium) == 5 && healAmount(HealSize::Large) == 10, "cura de 2, 5 e 10 blocos");
+
+    Room room({"######", "#P...#", "#....#", "######"});
+    std::vector<HealItem> items = {makeHealItem(HealSize::Small, 40, 20)};
+    for (int i = 0; i < 40; ++i) {
+        updateHealItems(items, room);
+    }
+    CHECK(items[0].box.y + items[0].box.h == 48.0f, "item cai e para no chao");
+    for (int i = 0; i < 500; ++i) {
+        updateHealItems(items, room);
+    }
+    CHECK(items.empty(), "item some depois de um tempo");
+
+    // Toma dano, elimina o inimigo e anda ate o item, em uma semente que solte cura
+    Input fire;
+    fire.shootHeld = true;
+    Input walk;
+    walk.right = true;
+    bool healed = false;
+    for (unsigned seed = 1; seed <= 20 && !healed; ++seed) {
+        Driver driver(arena({{EnemyKind::Crawler, 110, 224}}, 1), seed);
+        for (int i = 0; i < 200 && driver.game.player().hp() == 30; ++i) {
+            driver.step({});
+        }
+        const int hurtHp = driver.game.player().hp();
+        for (int i = 0; i < 400 && !driver.game.enemies().empty(); ++i) {
+            driver.step(i % 20 == 0 ? fire : Input{});
+        }
+        for (int i = 0; i < 300 && !driver.game.healItems().empty(); ++i) {
+            driver.step(walk);
+        }
+        healed = hurtHp < 30 && driver.game.enemies().empty() && driver.game.healItems().empty() && driver.game.player().hp() > hurtHp;
+    }
+    CHECK(healed, "inimigo eliminado solta cura, e pegar o item recupera a vida");
+}
+
+void testProfile() {
+    const std::filesystem::path path = std::filesystem::temp_directory_path() / "cnnx_teste_perfil" / "save.json";
+    std::filesystem::remove_all(path.parent_path());
+
+    Profile profile(path.string());
+    CHECK(profile.maxHp() == 30, "perfil novo tem 30 blocos");
+    CHECK(profile.addUpgrade("a") && profile.maxHp() == 35, "conquista leva de 30 para 35");
+    CHECK(!profile.addUpgrade("a") && profile.maxHp() == 35, "a mesma conquista nao conta duas vezes");
+
+    const Profile reloaded(path.string());
+    CHECK(reloaded.hasUpgrade("a") && reloaded.maxHp() == 35, "conquista fica salva no arquivo");
+
+    Profile capped;
+    for (int i = 0; i < 40; ++i) {
+        capped.addUpgrade(std::to_string(i));
+    }
+    CHECK(capped.maxHp() == 100, "vida maxima para em 100");
+
+    std::ofstream(path) << "{quebrado";
+    CHECK(Profile(path.string()).maxHp() == 30, "save invalido comeca do zero sem quebrar");
+    std::filesystem::remove_all(path.parent_path());
+
+    LevelData level = arena({});
+    level.hpUpgrades = {{"segredo", {56, 208, 16, 16}}};
+    Driver driver(std::move(level));
+    driver.steps(3);
+    CHECK(driver.game.player().maxHp() == 35 && driver.game.player().hp() == 35, "pegar a conquista aumenta a vida na hora");
+    CHECK(driver.game.showingUpgradeMessage(), "conquista mostra aviso");
+    driver.game.respawn();
+    CHECK(driver.game.player().maxHp() == 35, "conquista continua depois de morrer");
+}
+
+void testLevelFlow() {
+    std::vector<LevelData> levels;
+    levels.push_back(arena({}));
+    LevelData second = arena({{EnemyKind::Crawler, 200, 224}}, 2);
+    second.puzzle = PuzzleKind::Tomada;
+    levels.push_back(std::move(second));
+    for (LevelData& level : levels) {
+        level.door = {48, 192, 16, 32};
+    }
+
+    Driver driver(std::move(levels));
+    Input up;
+    up.up = true;
+    Input jump;
+    jump.jumpHeld = true;
+
+    driver.steps(2);
+    driver.step(up);
+    CHECK(driver.game.hasNextLevel() && driver.game.puzzle().kind() == PuzzleKind::Rj45, "primeiro bloco usa RJ45");
+    solvePuzzle(driver);
+    CHECK(driver.game.mode() == GameMode::Complete, "primeiro bloco concluido");
+    driver.step({});
+    driver.step(jump);
+    CHECK(driver.game.levelIndex() == 1 && driver.game.mode() == GameMode::Playing, "Z leva ao segundo bloco");
+    CHECK(driver.game.strength() == 2 && !driver.game.doorOpen() && driver.game.enemies()[0].hp == 4, "segundo bloco usa forca 2");
+
+    driver.step({});
+    driver.step(up);
+    CHECK(driver.game.mode() == GameMode::Puzzle && driver.game.puzzle().kind() == PuzzleKind::Tomada, "segundo bloco usa a tomada");
+}
+
+void testSecretCanBeReached() {
+    const LevelData level = loadLevel(CNNX_LEVEL_PATH, "w1_f1_b2");
+    CHECK(level.hpUpgrades.size() == 1, "bloco 2 esconde uma conquista");
+    const Box secret = level.hpUpgrades[0].box;
+
+    Player player;
+    std::vector<Shot> shots;
+    Input previous;
+    player.spawn(67 * kTileSize + 9, 16 * kTileSize);
+    bool reached = false;
+    for (int frame = 0; frame < 900 && !reached; ++frame) {
+        // Pula reto ate entrar na passagem e so entao escala a parede dela
+        Input held;
+        held.left = player.bounds().y < 12 * kTileSize;
+        held.jumpHeld = frame < 22 || frame % 24 < 14;
+        player.update(withPressEdges(held, previous), level.room, shots);
+        previous = held;
+        reached = boxesOverlap(player.bounds(), secret);
+    }
+    CHECK(reached, "conquista alcancada com pulo de parede pela passagem secreta");
 }
 
 bool loadFails(const std::string& text, const std::string& expected) {
@@ -359,7 +511,7 @@ bool loadFails(const std::string& text, const std::string& expected) {
     return false;
 }
 
-std::string levelJson(const std::string& entities, const std::string& fields = R"([{"__identifier":"strength","__value":1}])") {
+std::string levelJson(const std::string& entities, const std::string& fields = R"([{"__identifier":"strength","__value":1},{"__identifier":"puzzle","__value":"rj45"}])") {
     return R"({"levels":[{"identifier":"w1_f1_b1","fieldInstances":)" + fields + R"(,"layerInstances":[
         {"__identifier":"Entities","entityInstances":[)" + entities + R"(]},
         {"__identifier":"Tiles","__cWid":2,"__cHei":2,"__gridSize":16,"intGridCsv":[0,0,1,1]}
@@ -391,6 +543,14 @@ void testBlockContent() {
     CHECK(count(EnemyKind::Crawler) == 6 && count(EnemyKind::Shooter) == 4, "6 rastejantes e 4 lancadores");
     CHECK(count(EnemyKind::FlyerPassive) == 3 && count(EnemyKind::FlyerChaser) == 3 && count(EnemyKind::FlyerShooter) == 2, "voadores: 3 passivos, 3 perseguidores e 2 atiradores");
     CHECK(level.tools.size() == 3 && !level.darkZones.empty() && level.fallingObjects.size() == 5, "3 ferramentas, zona escura e 5 objetos caindo");
+
+    const LevelData second = loadLevel(CNNX_LEVEL_PATH, "w1_f1_b2");
+    CHECK(second.strength == 2 && second.puzzle == PuzzleKind::Tomada, "w1_f1_b2 tem forca 2 e tomada");
+    CHECK(second.enemies.size() == 21 && second.tools.size() == 3, "w1_f1_b2 tem 21 inimigos e 3 ferramentas");
+    const auto secondHas = [&second](EnemyKind kind) {
+        return std::any_of(second.enemies.begin(), second.enemies.end(), [kind](const EnemySpawn& spawn) { return spawn.kind == kind; });
+    };
+    CHECK(secondHas(EnemyKind::FlyerPassive) && secondHas(EnemyKind::FlyerChaser) && secondHas(EnemyKind::FlyerShooter), "w1_f1_b2 tem os tres voadores");
 }
 
 // Bot simples: anda para a direita, atira, pula obstaculos, sobe escada e escala parede.
@@ -489,20 +649,20 @@ BotRun playBot(Driver& driver) {
 
 // Prova que o caminho existe. A rodada com inimigos so informa o desgaste: o bot
 // joga mal de proposito, e a dificuldade real e calibrada jogando.
-void testBlockCanBeFinished() {
-    LevelData route = loadLevel(CNNX_LEVEL_PATH, "w1_f1_b1");
+void testBlockCanBeFinished(const char* levelId) {
+    LevelData route = loadLevel(CNNX_LEVEL_PATH, levelId);
     route.enemies.clear();
     Driver driver(std::move(route));
     const BotRun run = playBot(driver);
-    CHECK(driver.game.mode() == GameMode::Puzzle, "bot percorre o bloco com todos os perigos (x maximo=%d, ferramentas faltando=%d)", run.bestX, driver.game.toolsMissing());
+    CHECK(driver.game.mode() == GameMode::Puzzle, "%s: bot percorre o bloco com todos os perigos (x maximo=%d, ferramentas faltando=%d)", levelId, run.bestX, driver.game.toolsMissing());
     if (driver.game.mode() == GameMode::Puzzle) {
         solvePuzzle(driver);
-        CHECK(driver.game.mode() == GameMode::Complete, "bot conclui o bloco");
+        CHECK(driver.game.mode() == GameMode::Complete, "%s: bot conclui o bloco", levelId);
     }
 
-    Driver full(loadLevel(CNNX_LEVEL_PATH, "w1_f1_b1"));
+    Driver full(loadLevel(CNNX_LEVEL_PATH, levelId));
     const BotRun fullRun = playBot(full);
-    std::printf("     bot com inimigos: x maximo=%d de %d, %d mortes em %.0f s\n", fullRun.bestX, full.game.room().widthPixels(), fullRun.deaths, fullRun.frames / 60.0);
+    std::printf("     %s, bot com inimigos: x maximo=%d de %d, %d mortes em %.0f s, chegou=%d\n", levelId, fullRun.bestX, full.game.room().widthPixels(), fullRun.deaths, fullRun.frames / 60.0, full.game.mode() == GameMode::Puzzle);
 }
 
 }  // namespace
@@ -516,7 +676,12 @@ void runGameTests() {
     testDeath();
     testDoor();
     testPuzzle();
+    testDrops();
+    testProfile();
+    testLevelFlow();
+    testSecretCanBeReached();
     testLoader();
     testBlockContent();
-    testBlockCanBeFinished();
+    testBlockCanBeFinished("w1_f1_b1");
+    testBlockCanBeFinished("w1_f1_b2");
 }
