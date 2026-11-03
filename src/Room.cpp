@@ -56,14 +56,28 @@ Room Room::testRoom() {
     });
 }
 
-bool Room::isSolid(int tileX, int tileY) const {
+char Room::tileAt(int tileX, int tileY) const {
     if (tileX < 0 || tileY < 0 || tileX >= width_ || tileY >= height_) {
-        return true;
+        return kTileSolid;
     }
-    return rows_[tileY][tileX] == '#';
+    return rows_[tileY][tileX];
 }
 
-bool Room::overlapsSolid(const Box& box) const {
+void Room::setTile(int tileX, int tileY, char tile) {
+    if (tileX >= 0 && tileY >= 0 && tileX < width_ && tileY < height_) {
+        rows_[tileY][tileX] = tile;
+    }
+}
+
+bool Room::isSolid(int tileX, int tileY) const {
+    const char tile = tileAt(tileX, tileY);
+    return tile == kTileSolid || tile == kTileSpike || tile == kTileShock || tile == kTileCrumble;
+}
+
+namespace {
+
+template <typename Predicate>
+bool anyTileUnder(const Box& box, Predicate predicate) {
     const int left = static_cast<int>(std::floor(box.x / kTileSize));
     const int top = static_cast<int>(std::floor(box.y / kTileSize));
     // ceil - 1: encostar exatamente na borda de um tile nao conta como sobrepor
@@ -72,10 +86,24 @@ bool Room::overlapsSolid(const Box& box) const {
 
     for (int y = top; y <= bottom; ++y) {
         for (int x = left; x <= right; ++x) {
-            if (isSolid(x, y)) {
+            if (predicate(x, y)) {
                 return true;
             }
         }
     }
     return false;
+}
+
+}  // namespace
+
+bool Room::overlapsSolid(const Box& box) const {
+    return anyTileUnder(box, [this](int x, int y) { return isSolid(x, y); });
+}
+
+bool Room::overlapsTile(const Box& box, char tile) const {
+    return anyTileUnder(box, [this, tile](int x, int y) { return tileAt(x, y) == tile; });
+}
+
+bool Room::isLadderTop(int tileX, int tileY) const {
+    return tileAt(tileX, tileY) == kTileLadder && tileAt(tileX, tileY - 1) != kTileLadder;
 }

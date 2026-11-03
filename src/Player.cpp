@@ -26,6 +26,13 @@ constexpr int kShotLife = 60;
 constexpr int kMaxNormalShots = 3;
 constexpr float kMuzzleOffsetY = 12.0f;
 
+constexpr float kClimbSpeed = 1.5f;
+
+constexpr int kInvulnFrames = 60;
+constexpr int kHurtFrames = 18;
+constexpr float kKnockbackSpeedX = 1.0f;
+constexpr float kKnockbackSpeedY = 2.5f;
+
 }  // namespace
 
 const char* playerStateName(PlayerState state) {
@@ -38,6 +45,9 @@ const char* playerStateName(PlayerState state) {
         case PlayerState::AirDash: return "AirDash";
         case PlayerState::WallSlide: return "WallSlide";
         case PlayerState::WallKick: return "WallKick";
+        case PlayerState::Climb: return "Climb";
+        case PlayerState::Hurt: return "Hurt";
+        case PlayerState::Dead: return "Dead";
     }
     return "?";
 }
@@ -47,6 +57,11 @@ Box shotBox(const Shot& shot) {
     const float w = kSizes[shot.level][0];
     const float h = kSizes[shot.level][1];
     return {shot.x - w / 2.0f, shot.y - h / 2.0f, w, h};
+}
+
+int shotDamage(const Shot& shot) {
+    static constexpr int kDamage[3] = {1, 2, 4};
+    return kDamage[shot.level];
 }
 
 void updateShots(std::vector<Shot>& shots, const Room& room) {
@@ -69,10 +84,25 @@ void Player::spawn(float centerX, float feetY) {
 }
 
 void Player::update(const Input& in, const Room& room, std::vector<Shot>& shots) {
+    invulnTimer_ = std::max(invulnTimer_ - 1, 0);
+    if (state_ == PlayerState::Dead) {
+        return;
+    }
+    if (state_ == PlayerState::Hurt) {
+        updateHurt(room);
+        return;
+    }
+
     const int moveDir = static_cast<int>(in.right) - static_cast<int>(in.left);
 
     jumpBuffer_ = in.jumpPressed ? kJumpBufferFrames : std::max(jumpBuffer_ - 1, 0);
     coyote_ = grounded_ ? kCoyoteFrames : std::max(coyote_ - 1, 0);
+
+    if (state_ == PlayerState::Climb || tryStartClimb(in, room)) {
+        updateClimb(in, moveDir, room);
+        updateBuster(in, shots);
+        return;
+    }
 
     // Na parede o personagem fica virado para fora, para atirar para longe dela.
     // No dash a direcao fica travada; apertar para o lado oposto cancela.
@@ -181,6 +211,100 @@ void Player::update(const Input& in, const Room& room, std::vector<Shot>& shots)
     updateBuster(in, shots);
 }
 
+bool Player::takeDamage(int amount, int knockDir) {
+    if (invulnTimer_ > 0 || state_ == PlayerState::Dead) {
+        return false;
+    }
+    hp_ = std::max(hp_ - amount, 0);
+    dashMomentum_ = false;
+    grounded_ = false;
+    if (hp_ == 0) {
+        state_ = PlayerState::Dead;
+        vx_ = 0.0f;
+        vy_ = 0.0f;
+        return true;
+    }
+    state_ = PlayerState::Hurt;
+    hurtTimer_ = kHurtFrames;
+    invulnTimer_ = kInvulnFrames;
+    vx_ = static_cast<float>(knockDir) * kKnockbackSpeedX;
+    vy_ = -kKnockbackSpeedY;
+    return true;
+}
+
+void Player::updateHurt(const Room& room) {
+    vy_ = std::min(vy_ + kGravity, kMaxFallSpeed);
+    if (moveX(vx_, room)) {
+        vx_ = 0.0f;
+    }
+    const bool hitVertical = moveY(vy_, room);
+    grounded_ = hitVertical && vy_ > 0.0f;
+    if (hitVertical) {
+        vy_ = 0.0f;
+    }
+    if (--hurtTimer_ <= 0) {
+        state_ = grounded_ ? PlayerState::Idle : PlayerState::Fall;
+    }
+}
+
+bool Player::tryStartClimb(const Input& in, const Room& room) {
+    const float centerX = x_ + kWidth / 2.0f;
+    const int column = static_cast<int>(std::floor(centerX / kTileSize));
+    const int feetRow = static_cast<int>(std::floor((y_ + kHeight) / kTileSize));
+
+    bool grab = false;
+    if (in.up) {
+        grab = room.overlapsTile({centerX, y_, 1.0f, kHeight}, kTileLadder);
+    } else if (in.down && grounded_ && room.isLadderTop(column, feetRow)) {
+        grab = true;
+        y_ += 2.0f;  // Passa do topo, que e plataforma de mao unica
+    }
+    if (!grab) {
+        return false;
+    }
+
+    state_ = PlayerState::Climb;
+    x_ = (static_cast<float>(column) + 0.5f) * kTileSize - kWidth / 2.0f;
+    vx_ = 0.0f;
+    vy_ = 0.0f;
+    grounded_ = false;
+    dashMomentum_ = false;
+    airDashAvailable_ = true;
+    return true;
+}
+
+void Player::updateClimb(const Input& in, int moveDir, const Room& room) {
+    if (moveDir != 0) {
+        facing_ = moveDir;
+    }
+    if (in.jumpPressed) {
+        state_ = PlayerState::Fall;
+        jumpBuffer_ = 0;
+        return;
+    }
+
+    vy_ = (static_cast<float>(in.down) - static_cast<float>(in.up)) * kClimbSpeed;
+    const bool movingDown = vy_ > 0.0f;
+    if (moveY(vy_, room) && movingDown) {
+        state_ = PlayerState::Idle;
+        grounded_ = true;
+        vy_ = 0.0f;
+        return;
+    }
+
+    const float centerX = x_ + kWidth / 2.0f;
+    const int column = static_cast<int>(std::floor(centerX / kTileSize));
+    const int feetRow = static_cast<int>(std::floor((y_ + kHeight - 1.0f) / kTileSize));
+    if (room.tileAt(column, feetRow) != kTileLadder && room.isLadderTop(column, feetRow + 1)) {
+        y_ = static_cast<float>((feetRow + 1) * kTileSize) - kHeight;
+        state_ = PlayerState::Idle;
+        grounded_ = true;
+        vy_ = 0.0f;
+    } else if (!room.overlapsTile({centerX, y_, 1.0f, kHeight}, kTileLadder)) {
+        state_ = PlayerState::Fall;
+    }
+}
+
 void Player::startJump() {
     if (state_ == PlayerState::Dash || state_ == PlayerState::AirDash) {
         dashMomentum_ = true;
@@ -265,8 +389,25 @@ bool Player::moveX(float dx, const Room& room) {
 }
 
 bool Player::moveY(float dy, const Room& room) {
+    const float previousFeet = y_ + kHeight;
     y_ += dy;
     if (!room.overlapsSolid(bounds())) {
+        if (dy <= 0.0f || state_ == PlayerState::Climb) {
+            return false;
+        }
+        const int feetRow = static_cast<int>(std::floor((y_ + kHeight) / kTileSize));
+        const float rowTop = static_cast<float>(feetRow * kTileSize);
+        if (previousFeet > rowTop || y_ + kHeight <= rowTop) {
+            return false;
+        }
+        const int left = static_cast<int>(std::floor(x_ / kTileSize));
+        const int right = static_cast<int>(std::ceil((x_ + kWidth) / kTileSize)) - 1;
+        for (int column = left; column <= right; ++column) {
+            if (room.isLadderTop(column, feetRow)) {
+                y_ = rowTop - kHeight;
+                return true;
+            }
+        }
         return false;
     }
     if (dy > 0.0f) {

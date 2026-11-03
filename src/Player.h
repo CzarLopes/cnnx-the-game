@@ -5,7 +5,7 @@
 #include "Input.h"
 #include "Room.h"
 
-enum class PlayerState { Idle, Run, Jump, Fall, Dash, AirDash, WallSlide, WallKick };
+enum class PlayerState { Idle, Run, Jump, Fall, Dash, AirDash, WallSlide, WallKick, Climb, Hurt, Dead };
 
 const char* playerStateName(PlayerState state);
 
@@ -18,6 +18,7 @@ struct Shot {
 };
 
 Box shotBox(const Shot& shot);
+int shotDamage(const Shot& shot);
 void updateShots(std::vector<Shot>& shots, const Room& room);
 
 // Velocidades em pixels por passo; a simulacao roda a 60 passos por segundo.
@@ -27,9 +28,12 @@ public:
     static constexpr float kHeight = 28.0f;
     static constexpr int kChargeLevel1 = 30;
     static constexpr int kChargeLevel2 = 90;
+    static constexpr int kMaxHp = 16;
 
     void spawn(float centerX, float feetY);
     void update(const Input& in, const Room& room, std::vector<Shot>& shots);
+    // knockDir empurra para esse lado. Retorna false se o dano foi ignorado.
+    bool takeDamage(int amount, int knockDir);
 
     Box bounds() const { return {x_, y_, kWidth, kHeight}; }
     PlayerState state() const { return state_; }
@@ -38,8 +42,14 @@ public:
     bool grounded() const { return grounded_; }
     float vx() const { return vx_; }
     float vy() const { return vy_; }
+    int hp() const { return hp_; }
+    bool isDead() const { return state_ == PlayerState::Dead; }
+    bool invulnerable() const { return invulnTimer_ > 0; }
 
 private:
+    bool tryStartClimb(const Input& in, const Room& room);
+    void updateClimb(const Input& in, int moveDir, const Room& room);
+    void updateHurt(const Room& room);
     void startJump();
     void startWallKick(int wallDir, bool dashHeld);
     void startDash();
@@ -65,4 +75,7 @@ private:
     int jumpBuffer_ = 0;
     int coyote_ = 0;
     int charge_ = 0;
+    int hp_ = kMaxHp;
+    int invulnTimer_ = 0;
+    int hurtTimer_ = 0;
 };
