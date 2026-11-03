@@ -193,6 +193,9 @@ void testShots() {
     normal.step(fire);
     normal.step({});
     CHECK(normal.shots.size() == 1 && shotDamage(normal.shots[0]) == 1, "tiro normal causa 1");
+    CHECK(normal.player.shootingPose(), "atirar ativa a pose de tiro");
+    normal.steps(20, {});
+    CHECK(!normal.player.shootingPose(), "pose de tiro termina sozinha");
     for (int i = 0; i < 6; ++i) {
         normal.step(fire);
         normal.step({});

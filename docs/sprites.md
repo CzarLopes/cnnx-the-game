@@ -6,20 +6,21 @@ A tela tem 256x224 e os tiles tem 16x16 px. Os tamanhos abaixo sao as caixas de 
 
 ## Personagem
 
-Caixa de 14x28 px.
+Caixa de 14x28 px, em quadros de 32x32 px. O protagonista e um cara de TI: meio gordinho, cabelo comprido, meio calvo, de oculos, com camiseta escura com `</>`. O tiro sai de um leitor de credencial na mao.
 
-- [ ] Parado
-- [ ] Correndo
-- [ ] Pulando e caindo
-- [ ] Dash no chao
-- [ ] Dash aereo
-- [ ] Deslizando na parede
-- [ ] Pulo de parede
-- [ ] Subindo escada
-- [ ] Tomando dano
-- [ ] Morrendo
-- [ ] Atirando em cada estado acima que permite tiro
-- [ ] Efeito de carga media e carga total
+A primeira versao fica em `assets/sprites/player.png`, gerada por `python tools/gen_player_sprite.py assets/sprites/player.png`. Se a arte passar a ser feita em um editor, o PNG vira a fonte e o script deixa de ser usado. A ordem das colunas precisa continuar igual a de `PlayerFrame` em `src/GameRender.cpp`.
+
+- [x] Parado
+- [x] Correndo
+- [x] Pulando e caindo
+- [x] Dash no chao e no ar, com o mesmo quadro
+- [x] Deslizando na parede
+- [x] Pulo de parede, reaproveitando o quadro de pulo
+- [x] Subindo escada
+- [x] Tomando dano
+- [x] Atirando em todas as poses
+- [ ] Morrendo, hoje reaproveita o quadro de dano
+- [ ] Efeito de carga media e carga total, hoje e so uma piscada de cor
 
 ## Tiros
 

@@ -49,6 +49,7 @@ public:
     int maxHp() const { return maxHp_; }
     bool isDead() const { return state_ == PlayerState::Dead; }
     bool invulnerable() const { return invulnTimer_ > 0; }
+    bool shootingPose() const { return shootPoseTimer_ > 0; }
 
 private:
     bool tryStartClimb(const Input& in, const Room& room);
@@ -83,4 +84,5 @@ private:
     int hp_ = Profile::kBaseMaxHp;
     int invulnTimer_ = 0;
     int hurtTimer_ = 0;
+    int shootPoseTimer_ = 0;
 };

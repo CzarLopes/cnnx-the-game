@@ -71,7 +71,10 @@ int run() {
     InitWindow(kViewWidth * kStartScale, kViewHeight * kStartScale, "Cnnx em o Resgate dos Freelas");
     SetWindowMinSize(kViewWidth, kViewHeight);
 
-    const std::string levelPath = std::string(GetApplicationDirectory()) + "assets/levels/cnnx.ldtk";
+    const std::string assetDirectory = std::string(GetApplicationDirectory()) + "assets/";
+    loadGameTextures(assetDirectory);
+
+    const std::string levelPath = assetDirectory + "levels/cnnx.ldtk";
     std::vector<LevelData> levels;
     for (const char* id : {"w1_f1_b1", "w1_f1_b2"}) {
         levels.push_back(loadLevel(levelPath, id));
@@ -119,6 +122,7 @@ int run() {
     }
 
     UnloadRenderTexture(target);
+    unloadGameTextures();
     CloseWindow();
     return 0;
 }

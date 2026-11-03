@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <stdexcept>
 
 #include "raylib.h"
 #include "rlgl.h"
@@ -17,9 +18,6 @@ constexpr Color kSpikeColor = {225, 225, 235, 255};
 constexpr Color kShockOnColor = {255, 240, 90, 255};
 constexpr Color kShockOffColor = {96, 92, 56, 255};
 constexpr Color kCrumbleColor = {150, 104, 70, 255};
-constexpr Color kPlayerColor = {60, 130, 240, 255};
-constexpr Color kDashColor = {120, 220, 255, 255};
-constexpr Color kWallColor = {130, 110, 245, 255};
 constexpr Color kHurtColor = {255, 90, 90, 255};
 constexpr Color kVisorColor = {240, 240, 250, 255};
 constexpr Color kChargeMidColor = {250, 220, 90, 255};
@@ -44,6 +42,21 @@ constexpr Color kBarColor = {90, 230, 120, 255};
 
 constexpr int kDarkCell = 4;
 constexpr int kCrumbleFallFrames = 24;
+constexpr int kSpriteSize = 32;
+
+// Colunas de player.png, na ordem de tools/gen_player_sprite.py
+enum PlayerFrame {
+    kFrameIdle = 0,
+    kFrameRun = 2,
+    kFrameJump = 6,
+    kFrameFall = 7,
+    kFrameDash = 8,
+    kFrameWall = 9,
+    kFrameClimb = 10,
+    kFrameHurt = 12,
+};
+
+Texture2D playerTexture = {};
 
 struct Camera2i {
     int x;
@@ -183,29 +196,40 @@ void drawEnemies(const Game& game, const Camera2i& cam) {
     }
 }
 
-Color playerColor(const Player& player, int frame) {
-    Color color = kPlayerColor;
+int playerFrame(const Player& player, int frame) {
     switch (player.state()) {
+        case PlayerState::Idle:
+            return kFrameIdle + frame / 30 % 2;
+        case PlayerState::Run:
+            return kFrameRun + frame / 6 % 4;
+        case PlayerState::Jump:
+        case PlayerState::WallKick:
+            return kFrameJump;
+        case PlayerState::Fall:
+            return kFrameFall;
         case PlayerState::Dash:
         case PlayerState::AirDash:
-            color = kDashColor;
-            break;
+            return kFrameDash;
         case PlayerState::WallSlide:
-        case PlayerState::WallKick:
-            color = kWallColor;
-            break;
+            return kFrameWall;
+        case PlayerState::Climb:
+            return kFrameClimb + static_cast<int>(player.bounds().y) / 10 % 2;
         case PlayerState::Hurt:
         case PlayerState::Dead:
-            color = kHurtColor;
-            break;
-        default:
-            break;
+            return kFrameHurt;
+    }
+    return kFrameIdle;
+}
+
+Color playerTint(const Player& player, int frame) {
+    if (player.state() == PlayerState::Hurt || player.state() == PlayerState::Dead) {
+        return kHurtColor;
     }
     // Pisca enquanto carrega, mudando de cor em cada nivel
     if (player.charge() >= Player::kChargeLevel1 && frame % 6 < 3) {
-        color = player.charge() >= Player::kChargeLevel2 ? kChargeFullColor : kChargeMidColor;
+        return player.charge() >= Player::kChargeLevel2 ? kChargeFullColor : kChargeMidColor;
     }
-    return color;
+    return WHITE;
 }
 
 void drawPlayer(const Game& game, const Camera2i& cam) {
@@ -214,10 +238,13 @@ void drawPlayer(const Game& game, const Camera2i& cam) {
         return;
     }
     const Box box = player.bounds();
-    drawBox(box, cam, playerColor(player, game.frame()));
-    const int px = static_cast<int>(box.x) - cam.x;
-    const int visorX = player.facing() > 0 ? px + static_cast<int>(box.w) - 6 : px;
-    DrawRectangle(visorX, static_cast<int>(box.y) - cam.y + 6, 6, 4, kVisorColor);
+    const float size = static_cast<float>(kSpriteSize);
+    // Largura negativa espelha o quadro quando ele olha para a esquerda
+    const Rectangle source = {static_cast<float>(playerFrame(player, game.frame()) * kSpriteSize),
+                              player.shootingPose() ? size : 0.0f, static_cast<float>(player.facing()) * size, size};
+    const Vector2 position = {static_cast<float>(static_cast<int>(box.x + box.w / 2.0f) - kSpriteSize / 2 - cam.x),
+                              static_cast<float>(static_cast<int>(box.y + box.h) - kSpriteSize - cam.y)};
+    DrawTextureRec(playerTexture, source, position, playerTint(player, game.frame()));
 }
 
 void drawShots(const Game& game, const Camera2i& cam) {
@@ -362,6 +389,19 @@ void drawComplete(const Game& game) {
 }
 
 }  // namespace
+
+void loadGameTextures(const std::string& assetDirectory) {
+    const std::string path = assetDirectory + "sprites/player.png";
+    playerTexture = LoadTexture(path.c_str());
+    if (!IsTextureValid(playerTexture)) {
+        throw std::runtime_error("Nao foi possivel abrir " + path);
+    }
+    SetTextureFilter(playerTexture, TEXTURE_FILTER_POINT);
+}
+
+void unloadGameTextures() {
+    UnloadTexture(playerTexture);
+}
 
 void drawGame(const Game& game) {
     if (game.mode() == GameMode::Puzzle) {

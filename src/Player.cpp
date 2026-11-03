@@ -25,6 +25,7 @@ constexpr float kShotSpeed = 6.0f;
 constexpr int kShotLife = 60;
 constexpr int kMaxNormalShots = 3;
 constexpr float kMuzzleOffsetY = 12.0f;
+constexpr int kShootPoseFrames = 14;
 
 constexpr float kClimbSpeed = 1.5f;
 
@@ -87,6 +88,7 @@ void Player::spawn(float centerX, float feetY, int maxHp) {
 
 void Player::update(const Input& in, const Room& room, std::vector<Shot>& shots) {
     invulnTimer_ = std::max(invulnTimer_ - 1, 0);
+    shootPoseTimer_ = std::max(shootPoseTimer_ - 1, 0);
     if (state_ == PlayerState::Dead) {
         return;
     }
@@ -372,6 +374,7 @@ void Player::fireShot(int level, std::vector<Shot>& shots) {
             return;
         }
     }
+    shootPoseTimer_ = kShootPoseFrames;
     const float muzzleX = x_ + kWidth / 2.0f + static_cast<float>(facing_) * (kWidth / 2.0f + 4.0f);
     shots.push_back({muzzleX, y_ + kMuzzleOffsetY, static_cast<float>(facing_) * kShotSpeed, level, kShotLife});
 }
