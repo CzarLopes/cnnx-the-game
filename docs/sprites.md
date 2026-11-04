@@ -22,6 +22,16 @@ A primeira versao fica em `assets/sprites/player.png`, gerada por `python tools/
 - [ ] Morrendo, hoje reaproveita o quadro de dano
 - [ ] Efeito de carga media e carga total, hoje e so uma piscada de cor
 
+## Celo, da logistica
+
+Nao e jogavel: aparece de vez em quando e passa as dicas das fases. Feito a partir de `assets/sprites/inspiration/Celo-logistica.png`. Cabelo curto escuro com degrade, sorriso aberto, camiseta preta com etiqueta no peito, correntinha dourada e bermuda jeans clara rasgada.
+
+Ainda nao entra no jogo.
+
+- [x] Corpo de lado em quadros de 32x32 (`npc_celo.png`), desenhado por `python tools/gen_npc_sprite.py assets/sprites`: parado (2 quadros), falando (2), acenando e olhando o celular
+- [x] Retrato de 64x64 para a caixa de dialogo (`portrait_celo.png`): sorrindo, falando e rindo. Sai da foto por `python tools/gen_portrait.py celo assets/sprites` (precisa do Pillow), com olhos, boca e cabelo retocados no script. O mesmo script serve para os retratos dos freelas: cada um ganha uma entrada em `CHARACTERS`
+- [ ] Caixa de dialogo no jogo
+
 ## Tiros
 
 - [ ] Tiro normal (6x4 px)
