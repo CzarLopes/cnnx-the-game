@@ -2,6 +2,7 @@
 
 #include <string>
 
+#include "App.h"
 #include "Game.h"
 #include "TitleMenu.h"
 
@@ -15,3 +16,5 @@ void unloadGameTextures();
 // Desenha uma tela de kViewWidth x kViewHeight no alvo de desenho atual.
 void drawGame(const Game& game);
 void drawTitle(const TitleMenu& menu);
+// Desenha a tela atual do App: inicial, mapa, fases ou jogo.
+void drawApp(const App& app);

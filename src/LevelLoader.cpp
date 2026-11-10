@@ -186,12 +186,43 @@ LevelData parseLevel(const std::string& ldtkJson, const std::string& levelId) {
     }
 }
 
-LevelData loadLevel(const std::string& ldtkPath, const std::string& levelId) {
-    std::ifstream file(ldtkPath, std::ios::binary);
+namespace {
+
+std::string readFile(const std::string& path) {
+    std::ifstream file(path, std::ios::binary);
     if (!file) {
-        throw std::runtime_error("Nao foi possivel abrir " + ldtkPath);
+        throw std::runtime_error("Nao foi possivel abrir " + path);
     }
     std::ostringstream contents;
     contents << file.rdbuf();
-    return parseLevel(contents.str(), levelId);
+    return contents.str();
+}
+
+}  // namespace
+
+LevelData loadLevel(const std::string& ldtkPath, const std::string& levelId) {
+    return parseLevel(readFile(ldtkPath), levelId);
+}
+
+std::vector<LevelData> parseAllLevels(const std::string& ldtkJson) {
+    json project;
+    try {
+        project = json::parse(ldtkJson);
+    } catch (const json::exception& error) {
+        throw std::runtime_error(std::string("Projeto LDtk com JSON invalido: ") + error.what());
+    }
+    std::vector<LevelData> levels;
+    for (const json& level : project.at("levels")) {
+        const std::string id = level.value("identifier", std::string());
+        try {
+            levels.push_back(parseLevelJson(project, id));
+        } catch (const json::exception& error) {
+            fail(id, std::string("JSON invalido: ") + error.what());
+        }
+    }
+    return levels;
+}
+
+std::vector<LevelData> loadAllLevels(const std::string& ldtkPath) {
+    return parseAllLevels(readFile(ldtkPath));
 }

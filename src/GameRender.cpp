@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <stdexcept>
 #include <utility>
 
@@ -63,6 +64,10 @@ Texture2D turnstileTexture = {};
 // Camadas de tools/gen_title_screen.py; os fachos de luz passam entre elas
 Texture2D titleBackTexture = {};
 Texture2D titleFrontTexture = {};
+// Arte de tools/gen_world_screens.py
+Texture2D worldMapTexture = {};
+Texture2D worldIconsTexture = {};
+Texture2D phasesW1Texture = {};
 
 constexpr Color kMenuTextColor = {236, 228, 255, 255};
 constexpr Color kMenuSelectedColor = {255, 222, 84, 255};
@@ -439,7 +444,7 @@ void drawPuzzle(const Game& game) {
 void drawComplete(const Game& game) {
     ClearBackground(kPanelColor);
     DrawText("Bloco concluido!", 34, 80, 20, kDoorOpenColor);
-    const char* next = game.hasNextLevel() ? "Porta aberta. Z vai para o proximo bloco" : "Fim dos blocos prontos. Z recomeca";
+    const char* next = game.hasNextLevel() ? "Porta aberta. Z vai para o proximo bloco" : "Fase concluida! Z volta para as fases";
     DrawText(next, (kViewWidth - MeasureText(next, 10)) / 2, 120, 10, RAYWHITE);
 }
 
@@ -524,6 +529,147 @@ void drawMainMenu(const TitleMenu& menu) {
     }
 }
 
+// ---------------------------------------------------------------- mapa e fases
+
+constexpr int kIconSize = 32;
+constexpr Color kPathColor = {255, 244, 214, 255};
+constexpr Color kPathShadowColor = {14, 8, 24, 160};
+constexpr Color kLockedTint = {156, 150, 178, 255};
+
+// Centro de cada icone no mapa, na ordem de worlds()
+constexpr int kWorldIconPositions[kWorldCount][2] = {{150, 168}, {206, 102}, {82, 120}, {128, 60}};
+// Pontos das fases na praia do Planeta Catraca; a fase final fica no portal
+constexpr int kPhaseNodePositions[kPhasesPerWorld][2] = {{22, 178}, {52, 154}, {84, 176}, {114, 150}, {144, 172}, {172, 148}, {224, 180}};
+
+void drawDottedPath(int x0, int y0, int x1, int y1) {
+    const int steps = std::max(std::abs(x1 - x0), std::abs(y1 - y0));
+    for (int step = 0; step <= steps; step += 4) {
+        const int x = x0 + (x1 - x0) * step / std::max(steps, 1);
+        const int y = y0 + (y1 - y0) * step / std::max(steps, 1);
+        DrawRectangle(x, y + 1, 2, 2, kPathShadowColor);
+        DrawRectangle(x, y, 2, 2, kPathColor);
+    }
+}
+
+// Cadeado de 7x8 com o canto superior esquerdo em (x, y)
+void drawPadlock(int x, int y) {
+    DrawRectangle(x + 1, y, 5, 4, kTextShadowColor);
+    DrawRectangle(x + 2, y + 1, 3, 3, {180, 184, 200, 255});
+    DrawRectangle(x + 3, y + 2, 1, 2, kTextShadowColor);
+    DrawRectangle(x, y + 3, 7, 5, kTextShadowColor);
+    DrawRectangle(x + 1, y + 4, 5, 3, {236, 192, 64, 255});
+    DrawRectangle(x + 3, y + 5, 1, 1, kTextShadowColor);
+}
+
+// O protagonista parado, com os pes em (x, feetY), balancando de leve
+void drawPlayerMarker(int x, int feetY, int frame) {
+    const Rectangle source = {static_cast<float>((frame / 30 % 2) * kSpriteSize), 0.0f, static_cast<float>(kSpriteSize),
+                              static_cast<float>(kSpriteSize)};
+    DrawTextureRec(playerTexture, source, {static_cast<float>(x - kSpriteSize / 2), static_cast<float>(feetY - kSpriteSize)},
+                   WHITE);
+}
+
+void drawHeader(const char* text) {
+    DrawRectangle(0, 0, kViewWidth, 17, kMenuPanelColor);
+    DrawRectangle(0, 17, kViewWidth, 1, kMenuBorderColor);
+    drawCenteredText(text, 4, kMenuSelectedColor);
+}
+
+void drawFooter(const char* title, Color titleColor, const char* detail, Color detailColor) {
+    DrawRectangle(0, 196, kViewWidth, 28, kMenuPanelColor);
+    DrawRectangle(0, 196, kViewWidth, 1, kMenuBorderColor);
+    drawCenteredText(title, 199, titleColor);
+    drawCenteredText(detail, 211, detailColor);
+}
+
+void drawWorldSelect(const App& app) {
+    const Selector& select = app.worldSelect();
+    DrawTexture(worldMapTexture, 0, 0, WHITE);
+    for (int world = 0; world + 1 < kWorldCount; ++world) {
+        drawDottedPath(kWorldIconPositions[world][0], kWorldIconPositions[world][1] + 8,
+                       kWorldIconPositions[world + 1][0], kWorldIconPositions[world + 1][1] + 8);
+    }
+    for (int world = 0; world < kWorldCount; ++world) {
+        const int x = kWorldIconPositions[world][0] - kIconSize / 2;
+        const int y = kWorldIconPositions[world][1] - kIconSize / 2;
+        const bool open = worlds()[world].open;
+        const Rectangle source = {static_cast<float>(world * kIconSize), 0.0f, kIconSize, kIconSize};
+        DrawTextureRec(worldIconsTexture, source, {static_cast<float>(x), static_cast<float>(y)}, open ? WHITE : kLockedTint);
+        if (!open) {
+            drawPadlock(x + kIconSize - 9, y + kIconSize - 10);
+        }
+    }
+
+    const int cursor = select.cursor();
+    const int iconX = kWorldIconPositions[cursor][0];
+    const int iconY = kWorldIconPositions[cursor][1];
+    const int bounce = select.frame() / 15 % 2;
+    drawShadowText("v", iconX - 2, iconY - kIconSize / 2 - 12 - bounce, kMenuSelectedColor);
+    drawPlayerMarker(iconX - kIconSize / 2 - 6, iconY + kIconSize / 2, select.frame());
+
+    drawHeader("Escolha o festival");
+    const WorldInfo& world = worlds()[cursor];
+    if (world.open) {
+        drawFooter(world.name, kMenuSelectedColor, "Z entra   X volta", kMenuTextColor);
+    } else {
+        drawFooter(world.name, kMenuDisabledColor, "Em breve", kMenuDisabledColor);
+    }
+}
+
+Color phaseNodeColor(PhaseState state) {
+    switch (state) {
+        case PhaseState::Open: return {255, 222, 84, 255};
+        case PhaseState::Complete: return {90, 220, 120, 255};
+        case PhaseState::Locked: return {150, 144, 170, 255};
+        case PhaseState::Soon: return {92, 84, 112, 255};
+    }
+    return WHITE;
+}
+
+const char* phaseDetail(const App& app, int phase, PhaseState state) {
+    switch (state) {
+        case PhaseState::Open: return TextFormat("%d blocos   Z joga   X volta", app.blockCount(app.world(), phase));
+        case PhaseState::Complete: return "Concluida   Z joga de novo   X volta";
+        case PhaseState::Locked: return phase == kFinalPhase ? "Conclua as outras fases" : "Conclua a fase anterior";
+        case PhaseState::Soon: return "Em construcao";
+    }
+    return "";
+}
+
+void drawPhaseSelect(const App& app) {
+    const Selector& select = app.phaseSelect();
+    DrawTexture(phasesW1Texture, 0, 0, WHITE);
+    for (int phase = 0; phase + 1 < kPhasesPerWorld; ++phase) {
+        drawDottedPath(kPhaseNodePositions[phase][0], kPhaseNodePositions[phase][1], kPhaseNodePositions[phase + 1][0],
+                       kPhaseNodePositions[phase + 1][1]);
+    }
+    for (int phase = 0; phase < kPhasesPerWorld; ++phase) {
+        const int x = kPhaseNodePositions[phase][0];
+        const int y = kPhaseNodePositions[phase][1];
+        const PhaseState state = app.phaseState(app.world(), phase);
+        DrawCircle(x, y + 1, 8.0f, kTextShadowColor);
+        DrawCircle(x, y, 7.0f, kTextShadowColor);
+        DrawCircle(x, y, 6.0f, phaseNodeColor(state));
+        if (state == PhaseState::Locked) {
+            drawPadlock(x - 3, y - 4);
+        } else {
+            const char* label = phase == kFinalPhase ? "F" : TextFormat("%d", phase + 1);
+            DrawText(label, x - MeasureText(label, 10) / 2, y - 4, 10, kTextShadowColor);
+        }
+    }
+
+    const int cursor = select.cursor();
+    drawPlayerMarker(kPhaseNodePositions[cursor][0], kPhaseNodePositions[cursor][1] - 6 - select.frame() / 15 % 2,
+                     select.frame());
+
+    drawHeader(worlds()[app.world()].name);
+    const PhaseState state = app.phaseState(app.world(), cursor);
+    const char* title = cursor == kFinalPhase ? "Fase final" : TextFormat("Fase %d", cursor + 1);
+    const bool playable = state == PhaseState::Open || state == PhaseState::Complete;
+    drawFooter(title, playable ? kMenuSelectedColor : kMenuDisabledColor, phaseDetail(app, cursor, state),
+               playable ? kMenuTextColor : kMenuDisabledColor);
+}
+
 }  // namespace
 
 void loadGameTextures(const std::string& assetDirectory) {
@@ -540,6 +686,9 @@ void loadGameTextures(const std::string& assetDirectory) {
     turnstileTexture = load("turnstile.png");
     titleBackTexture = load("title_bg.png");
     titleFrontTexture = load("title_fg.png");
+    worldMapTexture = load("world_map.png");
+    worldIconsTexture = load("world_icons.png");
+    phasesW1Texture = load("phases_w1.png");
 }
 
 void unloadGameTextures() {
@@ -547,6 +696,9 @@ void unloadGameTextures() {
     UnloadTexture(turnstileTexture);
     UnloadTexture(titleBackTexture);
     UnloadTexture(titleFrontTexture);
+    UnloadTexture(worldMapTexture);
+    UnloadTexture(worldIconsTexture);
+    UnloadTexture(phasesW1Texture);
 }
 
 void drawTitle(const TitleMenu& menu) {
@@ -576,12 +728,21 @@ void drawTitle(const TitleMenu& menu) {
     }
 }
 
+void drawApp(const App& app) {
+    switch (app.screen()) {
+        case AppScreen::Title: drawTitle(app.title()); break;
+        case AppScreen::WorldSelect: drawWorldSelect(app); break;
+        case AppScreen::PhaseSelect: drawPhaseSelect(app); break;
+        case AppScreen::Playing: drawGame(*app.game()); break;
+    }
+}
+
 void drawGame(const Game& game) {
     if (game.mode() == GameMode::Puzzle) {
         drawPuzzle(game);
         return;
     }
-    if (game.mode() == GameMode::Complete) {
+    if (game.mode() == GameMode::Complete || game.mode() == GameMode::Finished) {
         drawComplete(game);
         return;
     }

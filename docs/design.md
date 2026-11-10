@@ -10,14 +10,22 @@ O jogo se passa no dia a dia de controle de acesso e credenciamento de eventos. 
 
 Os mundos sao festivais inspirados em festivais reais, com nome trocado e arte que lembra a identidade de cada um. Os nomes sao provisorios.
 
-| Mundo | Inspiracao | Identidade visual |
-|---|---|---|
-| Rock in Rede | Rock in Rio | Arco vermelho e branco, globo com braco de guitarra |
-| Lollaparafuso | Lollapalooza | Letreiro rosa, colunas listradas coloridas |
-| Planeta Catraca | Planeta Atlantida | Planeta com anel, azul de praia com ondas |
-| Rock the Morro | Rock the Mountain | Madeira, montanha com neve, verde |
+| Id | Mundo | Inspiracao | Identidade visual |
+|---|---|---|---|
+| w1 | Planeta Catraca | Planeta Atlantida | Planeta com anel, azul de praia com ondas |
+| w2 | Rock in Rede | Rock in Rio | Arco vermelho e branco, globo com braco de guitarra |
+| w3 | Lollaparafuso | Lollapalooza | Letreiro rosa, colunas listradas coloridas |
+| w4 | Rock the Morro | Rock the Mountain | Madeira, montanha com neve, verde |
 
-A tela inicial mostra os portais dos quatro, lado a lado.
+A tela inicial mostra os portais dos quatro, lado a lado. O Planeta Catraca e o primeiro mundo em desenvolvimento; os outros aparecem no mapa como "Em breve" (campo `open` em `src/Worlds.cpp`).
+
+## Fluxo de telas
+
+- Tela inicial: Novo jogo ou Carregar jogo levam ao mapa de mundos.
+- Mapa de mundos: os festivais num continente, ligados por um caminho. So mundos abertos entram.
+- Fases do mundo: as 6 fases e a fase final numa trilha. Uma fase abre quando a anterior e concluida; a final, quando todas as 6 estao concluidas. Fases sem blocos no `.ldtk` aparecem como "Em construcao".
+- Ao concluir o ultimo bloco da fase, o jogo volta para as fases, com a proxima liberada. Saindo no meio, a fase continua do bloco salvo.
+- Esc e X voltam uma tela; Esc na tela inicial fecha o jogo.
 
 ## Objetivo e progressao
 

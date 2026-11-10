@@ -17,13 +17,30 @@ Profile::Profile(std::string path) : path_(std::move(path)) {
     if (save.is_object() && save.contains("level") && save["level"].is_string()) {
         level_ = save["level"].get<std::string>();
     }
-    if (save.is_object() && save.contains("hpUpgrades") && save["hpUpgrades"].is_array()) {
-        for (const json& id : save["hpUpgrades"]) {
-            if (id.is_string()) {
-                upgrades_.push_back(id.get<std::string>());
+    const auto readList = [&save](const char* key, std::vector<std::string>& list) {
+        if (save.is_object() && save.contains(key) && save[key].is_array()) {
+            for (const json& id : save[key]) {
+                if (id.is_string()) {
+                    list.push_back(id.get<std::string>());
+                }
             }
         }
+    };
+    readList("hpUpgrades", upgrades_);
+    readList("phases", phases_);
+}
+
+bool Profile::isPhaseComplete(const std::string& phase) const {
+    return std::find(phases_.begin(), phases_.end(), phase) != phases_.end();
+}
+
+void Profile::completePhase(const std::string& phase) {
+    if (!isPhaseComplete(phase)) {
+        phases_.push_back(phase);
     }
+    // A fase terminou: entrar nela de novo comeca do primeiro bloco
+    level_.clear();
+    save();
 }
 
 bool Profile::hasUpgrade(const std::string& id) const {
@@ -54,6 +71,7 @@ void Profile::setLevel(const std::string& id) {
 void Profile::reset() {
     upgrades_.clear();
     level_.clear();
+    phases_.clear();
     save();
 }
 
@@ -66,5 +84,5 @@ void Profile::save() const {
         std::filesystem::create_directories(path.parent_path());
     }
     std::ofstream file(path);
-    file << json{{"level", level_}, {"hpUpgrades", upgrades_}}.dump(2);
+    file << json{{"level", level_}, {"phases", phases_}, {"hpUpgrades", upgrades_}}.dump(2);
 }

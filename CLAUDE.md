@@ -22,29 +22,30 @@ cmake --build build -j 8
 ctest --test-dir build --output-on-failure   # ou rode .\build\cnnx_tests.exe direto
 ```
 
-- Os testes sao um executavel unico (`cnnx_tests`) com um macro `CHECK` proprio (`tests/check.h`), sem framework. Nao ha filtro por teste: para rodar so um, comente as chamadas em `runPlayerTests()` / `runGameTests()`. A saida lista `ok`/`FAIL` por checagem e o total de falhas.
+- Os testes sao um executavel unico (`cnnx_tests`) com um macro `CHECK` proprio (`tests/check.h`), sem framework. Nao ha filtro por teste: para rodar so um, comente as chamadas em `tests/test_main.cpp` ou dentro de cada `run*Tests()`. A saida lista `ok`/`FAIL` por checagem e o total de falhas.
 - `-DCNNX_DEV_KEYS=OFF` desativa F1/F2/F3 (troca de forca do bloco).
 - O build copia `assets/` para perto do `.exe`; depois de editar o mapa ou sprites, rode `cmake --build build` de novo.
 
 ## Arquitetura
 
 - **`cnnx_core` (biblioteca estatica) nao depende de raylib.** Todas as regras ficam ali para rodar nos testes sem janela. So `src/main.cpp` e `src/GameRender.cpp` usam raylib. Nao inclua `raylib.h` em arquivos do core.
-- **Simulacao deterministica em passo fixo de 60 Hz.** `main.cpp` acumula tempo e chama `Game::step(Input)` N vezes por quadro. As bordas de botao (`*Pressed`) sao calculadas por passo com `withPressEdges(held, previous)` (`src/Input.h`), nunca com `IsKeyPressed`. O sorteio usa `std::mt19937` com seed passada ao `Game` (testes usam seed fixa).
-- **`Game`** (`src/Game.h`) e o dono do estado: lista de niveis em sequencia, `Player`, inimigos, tiros, curas, `Hazards`, `WirePuzzle`, `Profile`. Modos: `Playing` -> `Puzzle` (mini-desafio ao abrir a porta com todas as ferramentas) -> proximo nivel ou `Complete`. `respawn()` volta ao inicio do bloco restaurando inimigos e mantendo ferramentas.
-- **Telas**: `main.cpp` alterna entre a tela inicial (`TitleMenu`, no core) e o jogo (`std::optional<Game>`). Novo jogo chama `Profile::reset()`; carregar usa `findLevel(levels, profile.savedLevel())`. `Game` grava no perfil o id de cada bloco em que entra. Esc no jogo volta ao menu; Esc no menu principal fecha.
-- **`GameRender`** so le o `Game` (e o `TitleMenu`) por getters const e desenha numa tela virtual de 256x224 (`kViewWidth`/`kViewHeight`), escalada por inteiro em `main.cpp`.
+- **Simulacao deterministica em passo fixo de 60 Hz.** `main.cpp` acumula tempo e chama `App::step(Input)` N vezes por quadro. As bordas de botao (`*Pressed`) sao calculadas por passo com `withPressEdges(held, previous)` (`src/Input.h`), nunca com `IsKeyPressed`. O sorteio usa `std::mt19937` com seed passada ao `Game` (testes usam seed fixa).
+- **`Game`** (`src/Game.h`) e o dono do estado: lista de niveis em sequencia, `Player`, inimigos, tiros, curas, `Hazards`, `WirePuzzle`, `Profile`. Recebe os blocos de uma fase. Modos: `Playing` -> `Puzzle` (mini-desafio ao abrir a porta com todas as ferramentas) -> `Complete` -> proximo bloco, ou `Finished` no ultimo. `respawn()` volta ao inicio do bloco restaurando inimigos e mantendo ferramentas.
+- **Telas**: `App` (`src/App.h`, no core) e a maquina de telas: `Title` (`TitleMenu`) -> `WorldSelect` -> `PhaseSelect` (os dois usam `Selector`) -> `Playing` (`std::optional<Game>`). Ele agrupa os blocos por fase pelo id, decide o `PhaseState` de cada fase (Soon, Locked, Open, Complete) e, no `Finished`, marca a fase concluida no `Profile`. `App::back()` e o Esc: volta uma tela e retorna false na tela inicial. Mundos (ids, nomes, quais estao abertos) ficam em `src/Worlds.cpp`. `main.cpp` so le entrada, chama o `App` e desenha com `drawApp`.
+- **`GameRender`** so le o `App` e o `Game` por getters const e desenha numa tela virtual de 256x224 (`kViewWidth`/`kViewHeight`), escalada por inteiro em `main.cpp`.
 - **`Room`** e uma grade de tiles 16x16 em texto (`.` vazio, `#` solido, `H` escada, `^` espinho, `~` choque, `C` bloco que cai, `P` inicio). Os testes montam salas a partir de strings; fora dos limites conta como solido.
-- **Niveis**: `assets/levels/cnnx.ldtk` (editor LDtk), lido por `LevelLoader` (`parseLevel`/`loadLevel` lancam `std::runtime_error` com mensagem clara). IDs `w<mundo>_f<fase>_b<bloco>`; a lista de niveis carregados esta hardcoded em `main.cpp`. Camadas, entidades e campos do nivel estao descritos no `README.md`.
+- **Niveis**: `assets/levels/cnnx.ldtk` (editor LDtk), lido por `LevelLoader` (`parseLevel`/`loadLevel` lancam `std::runtime_error` com mensagem clara). IDs `w<mundo>_f<fase>_b<bloco>`; `loadAllLevels` carrega todos e o `App` agrupa por fase, entao um bloco novo no `.ldtk` aparece sozinho na fase certa. Camadas, entidades e campos do nivel estao descritos no `README.md`.
 - **Forca do bloco** (1-3) escala vida/dano/velocidade dos inimigos via `forceStats()` (`src/Enemy.h`), espelhando a tabela de `docs/design.md`.
-- **`Profile`** guarda o bloco atual e as conquistas de vida maxima em `%APPDATA%\CnnxResgateDosFreelas\save.json`; `Profile()` sem caminho nao salva (usado nos testes).
+- **`Profile`** guarda as fases concluidas, o bloco atual e as conquistas de vida maxima em `%APPDATA%\CnnxResgateDosFreelas\save.json`; `Profile()` sem caminho nao salva (usado nos testes).
 
 ## Testes
 
+- `tests/test_app.cpp` cobre o fluxo de telas com blocos minimos (porta no ponto de nascer); `tests/test_menu.cpp`, o menu inicial e o save.
 - `tests/test_game.cpp` usa um `Driver` que alimenta `Game::step` com entradas seguradas, e helpers como `arena(...)` e `solvePuzzle(...)`.
 - `testBlockCanBeFinished("<id>")` roda um bot que completa o bloco real do `.ldtk` (caminho via `CNNX_LEVEL_PATH`). Mudancas no mapa ou na fisica do jogador podem quebrar esse teste.
 
 ## Convencoes
 
 - Codigo, comentarios, docs e mensagens de teste em portugues, sem acentos.
-- Ao adicionar algo que precise de arte, inclua em `docs/sprites.md`. Para criar ou mudar arte, use a skill `pixel-art` (`.claude/skills/pixel-art/SKILL.md`). Os PNGs saem de `tools/gen_*.py`: `gen_player_sprite.py` (a ordem das colunas tem que bater com `PlayerFrame` em `src/GameRender.cpp`), `gen_title_screen.py` e `gen_death_effect.py`.
+- Ao adicionar algo que precise de arte, inclua em `docs/sprites.md`. Para criar ou mudar arte, use a skill `pixel-art` (`.claude/skills/pixel-art/SKILL.md`). Os PNGs saem de `tools/gen_*.py`: `gen_player_sprite.py` (a ordem das colunas tem que bater com `PlayerFrame` em `src/GameRender.cpp`), `gen_title_screen.py`, `gen_death_effect.py` e `gen_world_screens.py`.
 - `README.md` esta em UTF-16 LE; preserve a codificacao ao editar.

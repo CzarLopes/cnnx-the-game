@@ -95,6 +95,15 @@ Gerada por `python tools/gen_title_screen.py assets/sprites`, em duas camadas de
 - [x] Publico em silhueta
 - [ ] Animacao do publico pulando
 
+## Mapa de mundos e fases
+
+Gerados por `python tools/gen_world_screens.py assets/sprites`: `world_map.png` (so o terreno), `world_icons.png` (um icone de 32x32 por mundo, na ordem de `worlds()`) e `phases_w1.png` (praia do Planeta Catraca). Posicoes dos icones, caminhos, pontos das fases, cadeados e o protagonista como cursor sao desenhados em `src/GameRender.cpp`.
+
+- [x] Mapa com continente, montanhas, cidades e praia
+- [x] Icones dos quatro festivais
+- [x] Tela de fases do Planeta Catraca
+- [ ] Telas de fases de Rock in Rede, Lollaparafuso e Rock the Morro
+
 ## Interface
 
 - [ ] Barra de vida em coluna, com bloco cheio e vazio

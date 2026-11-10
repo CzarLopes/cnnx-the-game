@@ -22,9 +22,13 @@ public:
     // Bloco onde o jogador parou, usado pelo "Carregar jogo". Vazio se nao houver.
     const std::string& savedLevel() const { return level_; }
     void setLevel(const std::string& id);
-    // Ha algo para carregar: um bloco salvo ou alguma conquista.
-    bool hasProgress() const { return !level_.empty() || !upgrades_.empty(); }
-    // Novo jogo: apaga bloco e conquistas e salva na hora.
+    // Fases concluidas, pelo id "w1_f1". Concluir libera a proxima fase do mundo.
+    bool isPhaseComplete(const std::string& phase) const;
+    void completePhase(const std::string& phase);
+
+    // Ha algo para carregar: bloco salvo, fase concluida ou conquista.
+    bool hasProgress() const { return !level_.empty() || !upgrades_.empty() || !phases_.empty(); }
+    // Novo jogo: apaga bloco, fases e conquistas e salva na hora.
     void reset();
 
 private:
@@ -33,4 +37,5 @@ private:
     std::string path_;
     std::vector<std::string> upgrades_;
     std::string level_;
+    std::vector<std::string> phases_;
 };

@@ -15,7 +15,7 @@ Baseado em "How to make good pixel art effects with Claude" (Sprite Fusion): cod
 2. Escreva ou ajuste o gerador. Quando a ideia ainda esta solta, faca 2 ou 3 variacoes (cores, formas) em vez de uma so.
 3. Gere uma previa ampliada no scratchpad (os geradores aceitam um caminho extra para a previa) e abra a imagem com Read para olhar de verdade.
 4. Corrija o que nao funciona olhando a previa: leitura da silhueta, contraste com o fundo, nomes legiveis. Repita ate ficar bom, nao entregue o primeiro rascunho.
-5. Para efeitos animados, rode o jogo e capture a janela (`Start-Process .\build\cnnx.exe`, `CopyFromScreen` do System.Drawing) para conferir no contexto real.
+5. Confira no contexto real. Para telas que dependem de estado (morte, menus, mapa), compile no scratchpad um programa descartavel que usa `build\libcnnx_core.a` e `src\GameRender.cpp`, abre janela oculta (`FLAG_WINDOW_HIDDEN`), monta o `Game` ou o `App`, avanca os passos e exporta o render com `LoadImageFromTexture` + `ImageFlipVertical` + `ExportImage`. Use um caminho de save temporario. Para o executavel inteiro, capture a janela com `CopyFromScreen` do System.Drawing; teclas simuladas com `keybd_event` precisam de ~150 ms entre apertar e soltar, e a primeira pode se perder.
 6. Gere os PNGs finais em `assets/sprites/`, rode `cmake --build build` (copia os assets) e marque o item em `docs/sprites.md`.
 
 ## Regras de estilo

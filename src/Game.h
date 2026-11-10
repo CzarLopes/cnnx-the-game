@@ -13,7 +13,8 @@
 #include "Room.h"
 #include "WirePuzzle.h"
 
-enum class GameMode { Playing, Puzzle, Complete };
+// Finished: a fase acabou e o jogador confirmou na tela de bloco concluido.
+enum class GameMode { Playing, Puzzle, Complete, Finished };
 
 class Game {
 public:

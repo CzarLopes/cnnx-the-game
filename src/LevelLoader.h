@@ -38,3 +38,6 @@ size_t findLevel(const std::vector<LevelData>& levels, const std::string& id);
 // Lanca std::runtime_error com o motivo se o arquivo ou o nivel estiverem invalidos.
 LevelData parseLevel(const std::string& ldtkJson, const std::string& levelId);
 LevelData loadLevel(const std::string& ldtkPath, const std::string& levelId);
+// Todos os niveis do projeto, na ordem do arquivo.
+std::vector<LevelData> parseAllLevels(const std::string& ldtkJson);
+std::vector<LevelData> loadAllLevels(const std::string& ldtkPath);

@@ -3,16 +3,13 @@
 #include <cstdlib>
 #include <ctime>
 #include <exception>
-#include <optional>
 #include <string>
-#include <utility>
-#include <vector>
 
+#include "App.h"
 #include "Game.h"
 #include "GameRender.h"
 #include "Input.h"
 #include "LevelLoader.h"
-#include "TitleMenu.h"
 #include "raylib.h"
 
 namespace {
@@ -69,39 +66,17 @@ std::string savePath() {
     return folder + "save.json";
 }
 
-TitleMenu makeTitleMenu() {
-    return TitleMenu(Profile(savePath()).hasProgress());
-}
-
-// Executa a escolha do menu; o perfil e lido do disco para pegar o que o jogo ja salvou.
-void startGame(TitleAction action, const std::vector<LevelData>& levels, std::optional<Game>& game) {
-    Profile profile(savePath());
-    size_t startLevel = 0;
-    if (action == TitleAction::NewGame) {
-        profile.reset();
-    } else {
-        startLevel = findLevel(levels, profile.savedLevel());
-    }
-    game.emplace(levels, std::move(profile), static_cast<unsigned>(std::time(nullptr)), startLevel);
-}
-
 int run() {
     SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_RESIZABLE);
     InitWindow(kViewWidth * kStartScale, kViewHeight * kStartScale, "Cnnx em o Resgate dos Freelas");
     SetWindowMinSize(kViewWidth, kViewHeight);
-    // Esc volta para a tela inicial; so fecha o jogo a partir dela
+    // Esc volta uma tela; so fecha o jogo a partir da tela inicial
     SetExitKey(KEY_NULL);
 
     const std::string assetDirectory = std::string(GetApplicationDirectory()) + "assets/";
     loadGameTextures(assetDirectory);
 
-    const std::string levelPath = assetDirectory + "levels/cnnx.ldtk";
-    std::vector<LevelData> levels;
-    for (const char* id : {"w1_f1_b1", "w1_f1_b2"}) {
-        levels.push_back(loadLevel(levelPath, id));
-    }
-    std::optional<Game> game;
-    TitleMenu menu = makeTitleMenu();
+    App app(loadAllLevels(assetDirectory + "levels/cnnx.ldtk"), savePath(), static_cast<unsigned>(std::time(nullptr)));
 
     RenderTexture2D target = LoadRenderTexture(kViewWidth, kViewHeight);
     SetTextureFilter(target.texture, TEXTURE_FILTER_POINT);
@@ -114,42 +89,25 @@ int run() {
         accumulator += std::min(static_cast<double>(GetFrameTime()), kMaxFrameSeconds);
         const Input held = readHeldInput();
 
-        if (game) {
-            if (IsKeyPressed(KEY_ESCAPE)) {
-                game.reset();
-                menu = makeTitleMenu();
-            } else {
-                if (IsKeyPressed(KEY_R)) {
-                    game->respawn();
-                }
-                handleDevKeys(*game);
+        if (IsKeyPressed(KEY_ESCAPE)) {
+            quit = !app.back();
+        } else if (Game* game = app.game()) {
+            if (IsKeyPressed(KEY_R)) {
+                game->respawn();
             }
-        } else if (IsKeyPressed(KEY_ESCAPE) && !menu.back()) {
-            quit = true;
+            handleDevKeys(*game);
         }
 
         // A simulacao nao roda 1:1 com o desenho, entao as bordas de botao sao
         // calculadas por passo; IsKeyPressed perderia ou repetiria apertos.
         while (accumulator >= kStepSeconds) {
-            const Input in = withPressEdges(held, previousInput);
-            if (game) {
-                game->step(in);
-            } else {
-                const TitleAction action = menu.step(in);
-                if (action != TitleAction::None) {
-                    startGame(action, levels, game);
-                }
-            }
+            app.step(withPressEdges(held, previousInput));
             previousInput = held;
             accumulator -= kStepSeconds;
         }
 
         BeginTextureMode(target);
-        if (game) {
-            drawGame(*game);
-        } else {
-            drawTitle(menu);
-        }
+        drawApp(app);
         EndTextureMode();
 
         // Escala inteira para manter o pixel nitido em qualquer tamanho de janela

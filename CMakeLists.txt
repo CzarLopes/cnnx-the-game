@@ -27,6 +27,7 @@ FetchContent_MakeAvailable(raylib nlohmann_json)
 
 # Regras do jogo, sem raylib, para rodar tambem nos testes sem janela
 add_library(cnnx_core STATIC
+    src/App.cpp
     src/Enemy.cpp
     src/Game.cpp
     src/Hazards.cpp
@@ -35,8 +36,10 @@ add_library(cnnx_core STATIC
     src/Player.cpp
     src/Profile.cpp
     src/Room.cpp
+    src/Selector.cpp
     src/TitleMenu.cpp
     src/WirePuzzle.cpp
+    src/Worlds.cpp
 )
 target_include_directories(cnnx_core PUBLIC src)
 target_link_libraries(cnnx_core PUBLIC nlohmann_json::nlohmann_json)
@@ -64,6 +67,7 @@ endif()
 
 enable_testing()
 add_executable(cnnx_tests
+    tests/test_app.cpp
     tests/test_game.cpp
     tests/test_main.cpp
     tests/test_menu.cpp

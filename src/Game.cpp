@@ -79,8 +79,14 @@ void Game::step(const Input& in) {
             break;
         case GameMode::Complete:
             if (in.jumpPressed) {
-                enterLevel((levelIndex_ + 1) % levels_.size());
+                if (hasNextLevel()) {
+                    enterLevel(levelIndex_ + 1);
+                } else {
+                    mode_ = GameMode::Finished;
+                }
             }
+            break;
+        case GameMode::Finished:
             break;
     }
 }
