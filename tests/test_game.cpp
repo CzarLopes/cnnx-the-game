@@ -297,7 +297,10 @@ void testDeath() {
         ++frames;
     }
     CHECK(driver.game.player().isDead(), "morre depois de varios toques");
-    driver.steps(61);
+    CHECK(driver.game.deathFrames() == 1, "conta os passos da morte para a explosao");
+    driver.steps(Game::kDeathFrames - 2);
+    CHECK(driver.game.player().isDead(), "continua morto enquanto as catraquinhas voam");
+    driver.steps(2);
     CHECK(!driver.game.player().isDead() && driver.game.player().hp() == 30, "renasce sozinho depois de morrer");
 }
 

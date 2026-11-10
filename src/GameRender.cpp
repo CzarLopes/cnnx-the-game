@@ -58,6 +58,8 @@ enum PlayerFrame {
 };
 
 Texture2D playerTexture = {};
+// Quadros de tools/gen_death_effect.py, um giro de 90 graus por quadro
+Texture2D turnstileTexture = {};
 // Camadas de tools/gen_title_screen.py; os fachos de luz passam entre elas
 Texture2D titleBackTexture = {};
 Texture2D titleFrontTexture = {};
@@ -245,7 +247,12 @@ Color playerTint(const Player& player, int frame) {
 
 void drawPlayer(const Game& game, const Camera2i& cam) {
     const Player& player = game.player();
-    if (player.invulnerable() && game.frame() % 6 < 2) {
+    if (player.isDead()) {
+        // Pisca parado ate explodir; depois so as catraquinhas aparecem
+        if (game.deathFrames() >= Game::kDeathBurstFrame || game.deathFrames() % 4 >= 2) {
+            return;
+        }
+    } else if (player.invulnerable() && game.frame() % 6 < 2) {
         return;
     }
     const Box box = player.bounds();
@@ -256,6 +263,43 @@ void drawPlayer(const Game& game, const Camera2i& cam) {
     const Vector2 position = {static_cast<float>(static_cast<int>(box.x + box.w / 2.0f) - kSpriteSize / 2 - cam.x),
                               static_cast<float>(static_cast<int>(box.y + box.h) - kSpriteSize - cam.y)};
     DrawTextureRec(playerTexture, source, position, playerTint(player, game.frame()));
+}
+
+// Explosao de morte: dois aneis de 8 catraquinhas girando, com gravidade leve.
+// Os numeros batem com a previa de tools/gen_death_effect.py.
+void drawDeathBurst(const Game& game, const Camera2i& cam) {
+    constexpr int kTurnstileSize = 14;
+    constexpr int kTurnstileFrames = 4;
+    constexpr float kRingSpeeds[2] = {1.8f, 2.9f};
+    constexpr float kGravity = 0.045f;
+    constexpr int kFlashFrames = 6;
+
+    const int t = game.deathFrames() - Game::kDeathBurstFrame;
+    if (!game.player().isDead() || t < 0) {
+        return;
+    }
+    const Box box = game.player().bounds();
+    const float originX = std::floor(box.x + box.w / 2.0f) - static_cast<float>(cam.x);
+    const float originY = std::floor(box.y + box.h / 2.0f) - static_cast<float>(cam.y);
+
+    if (t < kFlashFrames) {
+        const float radius = 3.0f + static_cast<float>(t * 4);
+        DrawCircleLinesV({originX, originY}, radius, kVisorColor);
+        DrawCircleLinesV({originX, originY}, radius - 1.0f, kChargeMidColor);
+    }
+
+    const float time = static_cast<float>(t);
+    for (int ring = 0; ring < 2; ++ring) {
+        for (int i = 0; i < 8; ++i) {
+            const float angle = (static_cast<float>(i) + static_cast<float>(ring) * 0.5f) * PI / 4.0f;
+            const float x = originX + std::cos(angle) * kRingSpeeds[ring] * time;
+            const float y = originY + std::sin(angle) * kRingSpeeds[ring] * time + kGravity * time * time / 2.0f;
+            const int frame = (game.frame() / 4 + i + ring) % kTurnstileFrames;
+            const Rectangle source = {static_cast<float>(frame * kTurnstileSize), 0.0f, kTurnstileSize, kTurnstileSize};
+            DrawTextureRec(turnstileTexture, source,
+                           {std::round(x) - kTurnstileSize / 2, std::round(y) - kTurnstileSize / 2}, WHITE);
+        }
+    }
 }
 
 void drawShots(const Game& game, const Camera2i& cam) {
@@ -493,12 +537,14 @@ void loadGameTextures(const std::string& assetDirectory) {
         return texture;
     };
     playerTexture = load("player.png");
+    turnstileTexture = load("turnstile.png");
     titleBackTexture = load("title_bg.png");
     titleFrontTexture = load("title_fg.png");
 }
 
 void unloadGameTextures() {
     UnloadTexture(playerTexture);
+    UnloadTexture(turnstileTexture);
     UnloadTexture(titleBackTexture);
     UnloadTexture(titleFrontTexture);
 }
@@ -556,5 +602,6 @@ void drawGame(const Game& game) {
     drawShots(game, cam);
     drawPlayer(game, cam);
     drawDarkness(game, cam);
+    drawDeathBurst(game, cam);
     drawHud(game);
 }

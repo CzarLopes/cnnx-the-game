@@ -46,5 +46,5 @@ ctest --test-dir build --output-on-failure   # ou rode .\build\cnnx_tests.exe di
 ## Convencoes
 
 - Codigo, comentarios, docs e mensagens de teste em portugues, sem acentos.
-- Ao adicionar algo que precise de arte, inclua em `docs/sprites.md`. Para criar ou mudar arte, use a skill `pixel-art` (`.claude/skills/pixel-art/SKILL.md`). Os PNGs saem de `tools/gen_*.py`: `gen_player_sprite.py` (a ordem das colunas tem que bater com `PlayerFrame` em `src/GameRender.cpp`) e `gen_title_screen.py`.
+- Ao adicionar algo que precise de arte, inclua em `docs/sprites.md`. Para criar ou mudar arte, use a skill `pixel-art` (`.claude/skills/pixel-art/SKILL.md`). Os PNGs saem de `tools/gen_*.py`: `gen_player_sprite.py` (a ordem das colunas tem que bater com `PlayerFrame` em `src/GameRender.cpp`), `gen_title_screen.py` e `gen_death_effect.py`.
 - `README.md` esta em UTF-16 LE; preserve a codificacao ao editar.

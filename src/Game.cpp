@@ -6,7 +6,6 @@
 
 namespace {
 
-constexpr int kDeathFrames = 60;
 constexpr int kMessageFrames = 120;
 
 float centerX(const Box& box) {

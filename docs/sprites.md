@@ -19,7 +19,7 @@ A primeira versao fica em `assets/sprites/player.png`, gerada por `python tools/
 - [x] Subindo escada
 - [x] Tomando dano
 - [x] Atirando em todas as poses
-- [ ] Morrendo, hoje reaproveita o quadro de dano
+- [x] Morrendo: pisca parado e explode em catraquinhas (`assets/sprites/turnstile.png`, 4 quadros de 14x14 gerados por `python tools/gen_death_effect.py assets/sprites/turnstile.png`; o movimento fica em `drawDeathBurst`, em `src/GameRender.cpp`)
 - [ ] Efeito de carga media e carga total, hoje e so uma piscada de cor
 
 ## Celo, da logistica

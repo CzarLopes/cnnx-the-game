@@ -17,6 +17,11 @@ enum class GameMode { Playing, Puzzle, Complete };
 
 class Game {
 public:
+    // A morte dura kDeathFrames passos: o personagem pisca parado e, em
+    // kDeathBurstFrame, explode em catraquinhas antes de renascer.
+    static constexpr int kDeathFrames = 90;
+    static constexpr int kDeathBurstFrame = 15;
+
     explicit Game(LevelData level, Profile profile = Profile(), unsigned seed = 1);
     // Comeca no bloco startLevel e grava no perfil cada bloco em que entra.
     Game(std::vector<LevelData> levels, Profile profile, unsigned seed, size_t startLevel = 0);
@@ -47,6 +52,8 @@ public:
     bool showingToolsMessage() const { return messageTimer_ > 0; }
     bool showingUpgradeMessage() const { return upgradeTimer_ > 0; }
     int frame() const { return frame_; }
+    // Passos desde a morte; 0 com o jogador vivo.
+    int deathFrames() const { return deathTimer_; }
 
 private:
     void enterLevel(size_t index);
