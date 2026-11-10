@@ -524,6 +524,7 @@ void testLoader() {
 
     const LevelData level = parseLevel(levelJson(start + "," + door), "w1_f1_b1");
     CHECK(level.room.widthTiles() == 2 && level.room.isSolid(0, 1) && level.strength == 1, "carrega um mapa minimo valido");
+    CHECK(level.id == "w1_f1_b1", "o nivel guarda o proprio id");
 
     CHECK(loadFails(levelJson(door), "PlayerStart"), "erro claro sem PlayerStart");
     CHECK(loadFails(levelJson(start), "Door"), "erro claro sem Door");

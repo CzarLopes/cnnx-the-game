@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
+#include <utility>
 
 #include "raylib.h"
 #include "rlgl.h"
@@ -57,6 +58,16 @@ enum PlayerFrame {
 };
 
 Texture2D playerTexture = {};
+// Camadas de tools/gen_title_screen.py; os fachos de luz passam entre elas
+Texture2D titleBackTexture = {};
+Texture2D titleFrontTexture = {};
+
+constexpr Color kMenuTextColor = {236, 228, 255, 255};
+constexpr Color kMenuSelectedColor = {255, 222, 84, 255};
+constexpr Color kMenuDisabledColor = {112, 100, 136, 255};
+constexpr Color kMenuPanelColor = {14, 8, 24, 200};
+constexpr Color kMenuBorderColor = {90, 210, 210, 255};
+constexpr Color kTextShadowColor = {14, 8, 24, 255};
 
 struct Camera2i {
     int x;
@@ -388,19 +399,135 @@ void drawComplete(const Game& game) {
     DrawText(next, (kViewWidth - MeasureText(next, 10)) / 2, 120, 10, RAYWHITE);
 }
 
+// raylib so desenha triangulos com os vertices em sentido anti-horario
+void drawTriangleAnyOrder(Vector2 a, Vector2 b, Vector2 c, Color color) {
+    const float cross = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+    if (cross > 0.0f) {
+        std::swap(b, c);
+    }
+    DrawTriangle(a, b, c, color);
+}
+
+// Um facho por portal, na cor do festival, varrendo o ceu
+void drawBeams(int frame) {
+    static constexpr Color kBeamColors[4] = {
+        {255, 90, 100, 255},
+        {255, 110, 210, 255},
+        {90, 200, 255, 255},
+        {170, 255, 120, 255},
+    };
+    constexpr float kLength = 230.0f;
+    for (int i = 0; i < 4; ++i) {
+        const Vector2 origin = {35.0f + static_cast<float>(i * 62), 176.0f};
+        const float angle = 0.45f * std::sin(static_cast<float>(frame) * 0.015f + static_cast<float>(i) * 1.9f);
+        for (const auto& [spread, alpha] : {std::pair{0.10f, 28}, std::pair{0.04f, 40}}) {
+            const Vector2 left = {origin.x + kLength * std::sin(angle - spread), origin.y - kLength * std::cos(angle - spread)};
+            const Vector2 right = {origin.x + kLength * std::sin(angle + spread), origin.y - kLength * std::cos(angle + spread)};
+            Color color = kBeamColors[i];
+            color.a = static_cast<unsigned char>(alpha);
+            drawTriangleAnyOrder(origin, left, right, color);
+        }
+    }
+}
+
+void drawTwinkles(int frame) {
+    static constexpr int kStars[][2] = {{20, 14}, {58, 30}, {96, 70}, {140, 8}, {182, 40}, {206, 74}, {244, 56}, {30, 88}, {170, 92}, {120, 38}};
+    int index = 0;
+    for (const auto& star : kStars) {
+        const int phase = (frame / 6 + index * 13) % 40;
+        ++index;
+        if (phase > 4) {
+            continue;
+        }
+        const int x = star[0];
+        const int y = star[1];
+        const int arm = phase == 2 ? 2 : 1;
+        DrawRectangle(x - arm, y, arm * 2 + 1, 1, kMenuTextColor);
+        DrawRectangle(x, y - arm, 1, arm * 2 + 1, kMenuTextColor);
+    }
+}
+
+void drawShadowText(const char* text, int x, int y, Color color) {
+    DrawText(text, x + 1, y + 1, 10, kTextShadowColor);
+    DrawText(text, x, y, 10, color);
+}
+
+void drawCenteredText(const char* text, int y, Color color) {
+    drawShadowText(text, (kViewWidth - MeasureText(text, 10)) / 2, y, color);
+}
+
+void drawMenuPanel(int width, int top, int height) {
+    const int left = (kViewWidth - width) / 2;
+    DrawRectangle(left, top, width, height, kMenuPanelColor);
+    DrawRectangleLines(left, top, width, height, kMenuBorderColor);
+}
+
+void drawMainMenu(const TitleMenu& menu) {
+    constexpr int kTop = 65;
+    constexpr int kLineHeight = 13;
+    drawMenuPanel(124, kTop, 41);
+    for (int option = 0; option < TitleMenu::kOptionCount; ++option) {
+        const char* label = TitleMenu::optionLabel(option);
+        const int y = kTop + 5 + option * kLineHeight;
+        const int x = (kViewWidth - MeasureText(label, 10)) / 2;
+        const bool selected = menu.cursor() == option;
+        const Color color = !menu.enabled(option) ? kMenuDisabledColor : selected ? kMenuSelectedColor : kMenuTextColor;
+        drawShadowText(label, x, y, color);
+        if (selected) {
+            const int bounce = menu.frame() / 15 % 2;
+            drawShadowText(">", x - 10 - bounce, y, kMenuSelectedColor);
+        }
+    }
+}
+
 }  // namespace
 
 void loadGameTextures(const std::string& assetDirectory) {
-    const std::string path = assetDirectory + "sprites/player.png";
-    playerTexture = LoadTexture(path.c_str());
-    if (!IsTextureValid(playerTexture)) {
-        throw std::runtime_error("Nao foi possivel abrir " + path);
-    }
-    SetTextureFilter(playerTexture, TEXTURE_FILTER_POINT);
+    const auto load = [&assetDirectory](const char* name) {
+        const std::string path = assetDirectory + "sprites/" + name;
+        const Texture2D texture = LoadTexture(path.c_str());
+        if (!IsTextureValid(texture)) {
+            throw std::runtime_error("Nao foi possivel abrir " + path);
+        }
+        SetTextureFilter(texture, TEXTURE_FILTER_POINT);
+        return texture;
+    };
+    playerTexture = load("player.png");
+    titleBackTexture = load("title_bg.png");
+    titleFrontTexture = load("title_fg.png");
 }
 
 void unloadGameTextures() {
     UnloadTexture(playerTexture);
+    UnloadTexture(titleBackTexture);
+    UnloadTexture(titleFrontTexture);
+}
+
+void drawTitle(const TitleMenu& menu) {
+    DrawTexture(titleBackTexture, 0, 0, WHITE);
+    drawTwinkles(menu.frame());
+    drawBeams(menu.frame());
+    DrawTexture(titleFrontTexture, 0, 0, WHITE);
+    drawCenteredText("em o Resgate dos Freelas", 49, kMenuTextColor);
+
+    switch (menu.screen()) {
+        case TitleMenu::Screen::Main:
+            drawMainMenu(menu);
+            drawCenteredText("Setas escolhem   Z confirma", 211, kMenuTextColor);
+            break;
+        case TitleMenu::Screen::ConfirmNewGame:
+            drawMenuPanel(176, 65, 41);
+            drawCenteredText("Apagar o progresso salvo", 70, kMenuSelectedColor);
+            drawCenteredText("e comecar do zero?", 83, kMenuTextColor);
+            drawCenteredText("Z apaga e comeca   X volta", 211, kMenuTextColor);
+            break;
+        case TitleMenu::Screen::Settings:
+            drawMenuPanel(124, 65, 41);
+            drawCenteredText("Configuracoes", 70, kMenuSelectedColor);
+            drawCenteredText("Em breve", 87, kMenuDisabledColor);
+            drawCenteredText("X volta", 211, kMenuTextColor);
+            break;
+    }
 }
 
 void drawGame(const Game& game) {

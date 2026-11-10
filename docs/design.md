@@ -6,6 +6,19 @@ Nome: **Cnnx em o Resgate dos Freelas**. "Freelas" e a forma carinhosa de chamar
 
 O jogo se passa no dia a dia de controle de acesso e credenciamento de eventos. Elementos do trabalho viram desafios, bonus e melhorias. Os mundos sao os festivais, e as fases usam elementos das cidades, como Sao Paulo e Rio de Janeiro.
 
+## Mundos
+
+Os mundos sao festivais inspirados em festivais reais, com nome trocado e arte que lembra a identidade de cada um. Os nomes sao provisorios.
+
+| Mundo | Inspiracao | Identidade visual |
+|---|---|---|
+| Rock in Rede | Rock in Rio | Arco vermelho e branco, globo com braco de guitarra |
+| Lollaparafuso | Lollapalooza | Letreiro rosa, colunas listradas coloridas |
+| Planeta Catraca | Planeta Atlantida | Planeta com anel, azul de praia com ondas |
+| Rock the Morro | Rock the Mountain | Madeira, montanha com neve, verde |
+
+A tela inicial mostra os portais dos quatro, lado a lado.
+
 ## Objetivo e progressao
 
 - O grande objetivo do jogo e resgatar os freelas e juntar as catracas.

@@ -23,18 +23,21 @@ int knockDirection(const Box& player, const Box& source) {
 Game::Game(LevelData level, Profile profile, unsigned seed)
     : Game(std::vector<LevelData>{std::move(level)}, std::move(profile), seed) {}
 
-Game::Game(std::vector<LevelData> levels, Profile profile, unsigned seed)
+Game::Game(std::vector<LevelData> levels, Profile profile, unsigned seed, size_t startLevel)
     : levels_(std::move(levels)),
       level_(levels_.at(0)),
       hazards_(level_.room, level_.darkZones, level_.fallingObjects),
       profile_(std::move(profile)),
       random_(seed) {
-    enterLevel(0);
+    enterLevel(startLevel < levels_.size() ? startLevel : 0);
 }
 
 void Game::enterLevel(size_t index) {
     levelIndex_ = index;
     level_ = levels_[index];
+    if (!level_.id.empty()) {
+        profile_.setLevel(level_.id);
+    }
     hazards_ = Hazards(level_.room, level_.darkZones, level_.fallingObjects);
     strength_ = level_.strength;
     doorOpen_ = false;

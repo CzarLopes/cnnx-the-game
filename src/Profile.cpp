@@ -14,6 +14,9 @@ Profile::Profile(std::string path) : path_(std::move(path)) {
         return;
     }
     const json save = json::parse(file, nullptr, false);
+    if (save.is_object() && save.contains("level") && save["level"].is_string()) {
+        level_ = save["level"].get<std::string>();
+    }
     if (save.is_object() && save.contains("hpUpgrades") && save["hpUpgrades"].is_array()) {
         for (const json& id : save["hpUpgrades"]) {
             if (id.is_string()) {
@@ -40,6 +43,20 @@ int Profile::maxHp() const {
     return std::min(kBaseMaxHp + kHpPerUpgrade * static_cast<int>(upgrades_.size()), kMaxHpLimit);
 }
 
+void Profile::setLevel(const std::string& id) {
+    if (level_ == id) {
+        return;
+    }
+    level_ = id;
+    save();
+}
+
+void Profile::reset() {
+    upgrades_.clear();
+    level_.clear();
+    save();
+}
+
 void Profile::save() const {
     if (path_.empty()) {
         return;
@@ -49,5 +66,5 @@ void Profile::save() const {
         std::filesystem::create_directories(path.parent_path());
     }
     std::ofstream file(path);
-    file << json{{"hpUpgrades", upgrades_}}.dump(2);
+    file << json{{"level", level_}, {"hpUpgrades", upgrades_}}.dump(2);
 }

@@ -164,10 +164,19 @@ LevelData parseLevelJson(const json& project, const std::string& levelId) {
     const int strength = strengthOf(level, levelId);
     const PuzzleKind puzzle = puzzleOf(level, levelId);
     return {Room(std::move(rows)), std::move(enemies), std::move(tools), *door, std::move(darkZones),
-            strength, std::move(fallingObjects), std::move(hpUpgrades), puzzle};
+            strength, std::move(fallingObjects), std::move(hpUpgrades), puzzle, levelId};
 }
 
 }  // namespace
+
+size_t findLevel(const std::vector<LevelData>& levels, const std::string& id) {
+    for (size_t i = 0; i < levels.size(); ++i) {
+        if (levels[i].id == id) {
+            return i;
+        }
+    }
+    return 0;
+}
 
 LevelData parseLevel(const std::string& ldtkJson, const std::string& levelId) {
     try {

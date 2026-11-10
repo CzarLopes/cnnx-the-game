@@ -10,6 +10,7 @@ struct Input {
     bool leftPressed = false;
     bool rightPressed = false;
     bool upPressed = false;
+    bool downPressed = false;
     bool jumpHeld = false;
     bool jumpPressed = false;
     bool dashHeld = false;
@@ -22,6 +23,7 @@ inline Input withPressEdges(Input held, const Input& previous) {
     held.leftPressed = held.left && !previous.left;
     held.rightPressed = held.right && !previous.right;
     held.upPressed = held.up && !previous.up;
+    held.downPressed = held.down && !previous.down;
     held.jumpPressed = held.jumpHeld && !previous.jumpHeld;
     held.dashPressed = held.dashHeld && !previous.dashHeld;
     held.shootPressed = held.shootHeld && !previous.shootHeld;

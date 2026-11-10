@@ -31,11 +31,12 @@ ctest --test-dir build --output-on-failure   # ou rode .\build\cnnx_tests.exe di
 - **`cnnx_core` (biblioteca estatica) nao depende de raylib.** Todas as regras ficam ali para rodar nos testes sem janela. So `src/main.cpp` e `src/GameRender.cpp` usam raylib. Nao inclua `raylib.h` em arquivos do core.
 - **Simulacao deterministica em passo fixo de 60 Hz.** `main.cpp` acumula tempo e chama `Game::step(Input)` N vezes por quadro. As bordas de botao (`*Pressed`) sao calculadas por passo com `withPressEdges(held, previous)` (`src/Input.h`), nunca com `IsKeyPressed`. O sorteio usa `std::mt19937` com seed passada ao `Game` (testes usam seed fixa).
 - **`Game`** (`src/Game.h`) e o dono do estado: lista de niveis em sequencia, `Player`, inimigos, tiros, curas, `Hazards`, `WirePuzzle`, `Profile`. Modos: `Playing` -> `Puzzle` (mini-desafio ao abrir a porta com todas as ferramentas) -> proximo nivel ou `Complete`. `respawn()` volta ao inicio do bloco restaurando inimigos e mantendo ferramentas.
-- **`GameRender`** so le o `Game` por getters const e desenha numa tela virtual de 256x224 (`kViewWidth`/`kViewHeight`), escalada por inteiro em `main.cpp`.
+- **Telas**: `main.cpp` alterna entre a tela inicial (`TitleMenu`, no core) e o jogo (`std::optional<Game>`). Novo jogo chama `Profile::reset()`; carregar usa `findLevel(levels, profile.savedLevel())`. `Game` grava no perfil o id de cada bloco em que entra. Esc no jogo volta ao menu; Esc no menu principal fecha.
+- **`GameRender`** so le o `Game` (e o `TitleMenu`) por getters const e desenha numa tela virtual de 256x224 (`kViewWidth`/`kViewHeight`), escalada por inteiro em `main.cpp`.
 - **`Room`** e uma grade de tiles 16x16 em texto (`.` vazio, `#` solido, `H` escada, `^` espinho, `~` choque, `C` bloco que cai, `P` inicio). Os testes montam salas a partir de strings; fora dos limites conta como solido.
 - **Niveis**: `assets/levels/cnnx.ldtk` (editor LDtk), lido por `LevelLoader` (`parseLevel`/`loadLevel` lancam `std::runtime_error` com mensagem clara). IDs `w<mundo>_f<fase>_b<bloco>`; a lista de niveis carregados esta hardcoded em `main.cpp`. Camadas, entidades e campos do nivel estao descritos no `README.md`.
 - **Forca do bloco** (1-3) escala vida/dano/velocidade dos inimigos via `forceStats()` (`src/Enemy.h`), espelhando a tabela de `docs/design.md`.
-- **`Profile`** guarda conquistas de vida maxima em `%APPDATA%\CnnxResgateDosFreelas\save.json`; `Profile()` sem caminho nao salva (usado nos testes).
+- **`Profile`** guarda o bloco atual e as conquistas de vida maxima em `%APPDATA%\CnnxResgateDosFreelas\save.json`; `Profile()` sem caminho nao salva (usado nos testes).
 
 ## Testes
 
@@ -45,5 +46,5 @@ ctest --test-dir build --output-on-failure   # ou rode .\build\cnnx_tests.exe di
 ## Convencoes
 
 - Codigo, comentarios, docs e mensagens de teste em portugues, sem acentos.
-- Ao adicionar algo que precise de arte, inclua em `docs/sprites.md`. O sprite do jogador e gerado por `python tools/gen_player_sprite.py assets/sprites/player.png`; a ordem das colunas tem que bater com `PlayerFrame` em `src/GameRender.cpp`.
+- Ao adicionar algo que precise de arte, inclua em `docs/sprites.md`. Para criar ou mudar arte, use a skill `pixel-art` (`.claude/skills/pixel-art/SKILL.md`). Os PNGs saem de `tools/gen_*.py`: `gen_player_sprite.py` (a ordem das colunas tem que bater com `PlayerFrame` em `src/GameRender.cpp`) e `gen_title_screen.py`.
 - `README.md` esta em UTF-16 LE; preserve a codificacao ao editar.

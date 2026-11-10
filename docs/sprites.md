@@ -85,6 +85,16 @@ Todas em 16x16 px.
 - [ ] RJ45: 8 fios, conector e testador de cabo
 - [ ] Tomada: fios de fase, neutro e terra, e terminais F, N e T
 
+## Tela inicial
+
+Gerada por `python tools/gen_title_screen.py assets/sprites`, em duas camadas de 256x224: `title_bg.png` (ceu, lua, morros e cidade) e `title_fg.png` (logo, faixa, portais e publico). Os fachos de luz e as estrelas que piscam sao desenhados em `drawTitle`, em `src/GameRender.cpp`, entre as duas camadas.
+
+- [x] Logo CNNX e faixa do subtitulo
+- [x] Portais dos quatro mundos, com catracas
+- [x] Ceu, lua, morros e cidade
+- [x] Publico em silhueta
+- [ ] Animacao do publico pulando
+
 ## Interface
 
 - [ ] Barra de vida em coluna, com bloco cheio e vazio

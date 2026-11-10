@@ -3,6 +3,7 @@
 #include <string>
 
 #include "Game.h"
+#include "TitleMenu.h"
 
 constexpr int kViewWidth = 256;
 constexpr int kViewHeight = 224;
@@ -13,3 +14,4 @@ void unloadGameTextures();
 
 // Desenha uma tela de kViewWidth x kViewHeight no alvo de desenho atual.
 void drawGame(const Game& game);
+void drawTitle(const TitleMenu& menu);

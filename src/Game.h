@@ -18,7 +18,8 @@ enum class GameMode { Playing, Puzzle, Complete };
 class Game {
 public:
     explicit Game(LevelData level, Profile profile = Profile(), unsigned seed = 1);
-    Game(std::vector<LevelData> levels, Profile profile, unsigned seed);
+    // Comeca no bloco startLevel e grava no perfil cada bloco em que entra.
+    Game(std::vector<LevelData> levels, Profile profile, unsigned seed, size_t startLevel = 0);
 
     void step(const Input& in);
     // Volta ao inicio do bloco mantendo as ferramentas ja coletadas.

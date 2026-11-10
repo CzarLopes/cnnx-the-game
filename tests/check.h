@@ -15,3 +15,4 @@ extern int gFailures;
 
 void runPlayerTests();
 void runGameTests();
+void runMenuTests();

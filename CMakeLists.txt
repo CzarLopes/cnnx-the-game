@@ -35,6 +35,7 @@ add_library(cnnx_core STATIC
     src/Player.cpp
     src/Profile.cpp
     src/Room.cpp
+    src/TitleMenu.cpp
     src/WirePuzzle.cpp
 )
 target_include_directories(cnnx_core PUBLIC src)
@@ -65,6 +66,7 @@ enable_testing()
 add_executable(cnnx_tests
     tests/test_game.cpp
     tests/test_main.cpp
+    tests/test_menu.cpp
     tests/test_player.cpp
 )
 target_link_libraries(cnnx_tests PRIVATE cnnx_core)
